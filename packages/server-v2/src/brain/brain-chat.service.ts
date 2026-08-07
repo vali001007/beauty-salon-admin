@@ -339,6 +339,40 @@ export class BrainChatService {
       }
     }
     if (!chatAnswer && !productProfile.actionsEnabled && this.hasExplicitSideEffectRequest(dto.message)) {
+      const actionClarification = this.answerFromQueryOnlyActionClarification(dto.message, this.modelMetadata('prepare'));
+      if (actionClarification) {
+        chatAnswer = actionClarification;
+        await this.recordModelTrace({
+          runId: run.id,
+          stepKey: 'query_only_action_clarification',
+          layer: 'cognition',
+          status: 'completed',
+          output: this.toJsonValue({
+            decision: 'clarification_required',
+            reason: actionClarification.adapterMetadata?.decisionCode ?? 'query_only_action_clarification_required',
+            businessStateChanged: false,
+          }),
+        });
+      }
+    }
+    if (!chatAnswer) {
+      const permissionDenied = this.answerFromPermissionSafetyPolicy(requestContext, dto.message);
+      if (permissionDenied) {
+        chatAnswer = permissionDenied;
+        await this.recordModelTrace({
+          runId: run.id,
+          stepKey: 'permission_safety_policy',
+          layer: 'governance',
+          status: 'completed',
+          output: this.toJsonValue({
+            decision: 'denied',
+            reason: permissionDenied.adapterMetadata?.decisionCode ?? 'permission_denied',
+            businessStateChanged: false,
+          }),
+        });
+      }
+    }
+    if (!chatAnswer && !productProfile.actionsEnabled && this.hasExplicitSideEffectRequest(dto.message)) {
       chatAnswer = this.buildActionExecutionDisabledAnswer(productProfile);
       await this.recordModelTrace({
         runId: run.id,
@@ -356,6 +390,22 @@ export class BrainChatService {
           businessStateChanged: false,
         }),
       });
+    }
+    if (!chatAnswer) {
+      const deterministicBoundary = this.answerFromDeterministicQueryBoundary(dto.message, this.modelMetadata('prepare'));
+      if (deterministicBoundary) {
+        chatAnswer = deterministicBoundary;
+        await this.recordModelTrace({
+          runId: run.id,
+          stepKey: 'deterministic_query_boundary',
+          layer: 'governance',
+          status: 'completed',
+          output: this.toJsonValue({
+            decision: deterministicBoundary.adapterMetadata?.decisionCode ?? 'deterministic_query_boundary',
+            businessStateChanged: false,
+          }),
+        });
+      }
     }
     if (!chatAnswer) {
       try {
@@ -3243,6 +3293,280 @@ export class BrainChatService {
     };
   }
 
+  private answerFromPermissionSafetyPolicy(context: BrainRequestContext, question: string): BrainChatAnswer | undefined {
+    const normalized = question.trim();
+    const deny = (reason: string, missingPermission: string) =>
+      this.buildPermissionDeniedAnswer(reason, missingPermission);
+    if (/(?:别的|其他|其它).{0,8}门店|跨门店|所有门店|全部门店/u.test(normalized)) {
+      if (!this.hasAnyPermission(context, ['core:store:multi-store:view', 'core:multi-store:view', 'core:store:all:view'])) {
+        return deny('当前账号没有跨门店数据权限，无法查看其他门店数据或汇总跨门店流水。', 'core:store:multi-store:view');
+      }
+    }
+    if (/(?:经营利润|总利润|利润是多少|毛利|成本结构|储值负债)/u.test(normalized)) {
+      if (
+        !this.hasAnyRole(context, ['store_manager', 'manager', 'finance']) &&
+        !this.hasAnyPermission(context, ['core:operation-profit:view'])
+      ) {
+        return deny('当前账号权限不足，无法查看经营利润、毛利、成本或储值负债数据。', 'core:operation-profit:view');
+      }
+    }
+    if (/(?:提成明细|提成结算|提成规则|别的美容师提成|所有美容师.*提成|美容师.*提成)/u.test(normalized)) {
+      if (
+        !this.hasAnyRole(context, ['store_manager', 'manager', 'finance']) &&
+        (this.hasAnyRole(context, ['receptionist', 'front_desk', 'cashier', 'beautician', 'customer_service']) ||
+          !this.hasAnyPermission(context, ['core:finance:settlement', 'core:operation-profit:manage']))
+      ) {
+        return deny('当前账号权限不足，无法查看或生成员工提成明细、提成结算和提成规则。', 'core:finance:view');
+      }
+    }
+    if (/(?:导出|下载).{0,12}(?:全部|所有)?.{0,12}(?:客户)?.{0,8}(?:手机号|电话|联系方式)/u.test(normalized)) {
+      if (!this.hasAnyPermission(context, ['core:customer:export', 'core:customer:sensitive:view'])) {
+        return deny('当前账号权限不足，无法导出客户手机号；敏感联系方式需要导出权限和脱敏审计。', 'core:customer:export');
+      }
+    }
+    if (
+      /(?:删除|删了|移除).{0,16}(?:客户|会员|客人)|(?:客户|会员|客人).{0,8}(?:删除|删了|移除)/u.test(normalized)
+    ) {
+      if (!this.hasAnyPermission(context, ['core:customer:delete'])) {
+        return deny('当前账号权限不足，无法删除客户资料；删除客户属于高风险越权动作。', 'core:customer:delete');
+      }
+    }
+    if (
+      this.hasExplicitSideEffectRequest(normalized) &&
+      /(?:退款|退钱|退费)/u.test(normalized) &&
+      !/(?:退款|退钱|退费).{0,8}(?:记录|明细|流水|历史)/u.test(normalized) &&
+      !/(?:这单|该单|订单|单号|最近三个月).{0,16}(?:退款|退钱|退费)|(?:退款|退钱|退费).{0,16}(?:这单|该单|订单|单号|最近三个月)/u.test(
+        normalized,
+      )
+    ) {
+      if (!this.hasAnyPermission(context, ['core:order:refund', 'core:cashier:refund', 'core:finance:refund'])) {
+        return deny('当前账号权限不足，无法执行或发起退款；退款属于收银资金动作。', 'core:order:refund');
+      }
+    }
+    return undefined;
+  }
+
+  private buildPermissionDeniedAnswer(reason: string, missingPermission: string): BrainChatAnswer {
+    const answer = `权限不足：${reason}本次已按越权请求拒绝处理，未查询、未导出、未执行，也未写入任何业务数据。`;
+    return {
+      status: 'completed',
+      answer,
+      citations: [],
+      suggestedActions: [],
+      blocks: [{ kind: 'limitations', items: [answer] }],
+      grounding: 'none',
+      adapterMetadata: {
+        decisionCode: 'permission_denied_by_brain_safety_policy',
+        missingPermission,
+        completion: { status: 'complete', missingCriteria: [], recoverable: false },
+      },
+    };
+  }
+
+  private hasAnyPermission(context: BrainRequestContext, permissions: readonly string[]) {
+    const granted = new Set(context.permissions ?? []);
+    if (granted.has('*')) return true;
+    const denied = new Set(context.deniedPermissions ?? []);
+    return permissions.some((permission) => granted.has(permission) && !denied.has(permission));
+  }
+
+  private hasAnyRole(context: BrainRequestContext, roles: readonly string[]) {
+    const actual = new Set((context.roles ?? []).map((role) => role.trim()).filter(Boolean));
+    return roles.some((role) => actual.has(role));
+  }
+
+  private answerFromQueryOnlyActionClarification(
+    question: string,
+    modelMetadata: BrainModelMetadata,
+  ): BrainChatAnswer | undefined {
+    const normalized = question.trim();
+    const build = (text: string, missingSlots: string[], options: Array<{ id: string; label: string; value: unknown }>) => {
+      const pendingClarification: BrainModelPendingClarification = {
+        missingSlots,
+        questions: [text],
+        ambiguities: [
+          {
+            slot: missingSlots[0] ?? 'actionTarget',
+            reason: 'query_only 动作请求缺少可审计目标，且当前运行版本不执行业务写入',
+            candidates: options.map((option) => option.label),
+          },
+        ],
+      };
+      return {
+        status: 'completed',
+        answer: text,
+        citations: [],
+        suggestedActions: [],
+        blocks: [{ kind: 'clarification' as const, question: text, options }],
+        grounding: 'none' as const,
+        adapterMetadata: {
+          decisionCode: 'query_only_action_clarification_required',
+          clarification: pendingClarification,
+          completion: { status: 'partial', missingCriteria: missingSlots, recoverable: true },
+        },
+        modelContextPendingClarification: pendingClarification,
+        modelMetadata,
+      } satisfies BrainChatAnswer;
+    };
+    if (/^(?:帮我|请|替我|给我)?(?:约|预约)(?:一下|一个|一位)?$/u.test(normalized)) {
+      return build(
+        '为了准确处理，请补充客户、项目或服务、预约时间和美容师；当前 query_only 版本不会创建预约或写入业务数据。',
+        ['customer', 'project', 'timeRange', 'beautician'],
+        [
+          { id: 'customer', label: '客户姓名/手机号', value: { slot: 'customer' } },
+          { id: 'project', label: '项目或服务', value: { slot: 'project' } },
+          { id: 'timeRange', label: '预约时间', value: { slot: 'timeRange' } },
+        ],
+      );
+    }
+    if (/^(?:给|为).{0,8}(?:她|他|客户|会员|客人)?(?:充值|充钱|储值)$/u.test(normalized)) {
+      return build(
+        '为了准确处理，请补充客户身份、充值金额和充值账户；充值属于资金动作，当前 query_only 版本不会执行充值成功。',
+        ['customer', 'amount', 'account'],
+        [
+          { id: 'customer', label: '客户姓名/手机号', value: { slot: 'customer' } },
+          { id: 'amount', label: '充值金额', value: { slot: 'amount' } },
+          { id: 'account', label: '充值卡项或账户', value: { slot: 'account' } },
+        ],
+      );
+    }
+    if (/^(?:核销|扣次|销卡)(?:一下)?$/u.test(normalized)) {
+      return build(
+        '为了准确处理，请补充客户、项目或服务记录、卡项或权益；核销属于履约动作，当前 query_only 版本不会执行核销成功。',
+        ['customer', 'project', 'cardOrServiceRecord'],
+        [
+          { id: 'customer', label: '客户', value: { slot: 'customer' } },
+          { id: 'project', label: '项目/服务记录', value: { slot: 'project' } },
+          { id: 'card', label: '卡项或权益', value: { slot: 'cardOrServiceRecord' } },
+        ],
+      );
+    }
+    return undefined;
+  }
+
+  private answerFromDeterministicQueryBoundary(question: string, modelMetadata: BrainModelMetadata): BrainChatAnswer | undefined {
+    const normalized = question.trim();
+    const followUp = this.answerFromDeterministicFollowUpBoundary(normalized, modelMetadata);
+    if (followUp) return followUp;
+    const boundary = this.rc350CapabilityBoundaryReason(normalized);
+    if (!boundary) return undefined;
+    const answer = `${boundary} Ami Brain 不会用相近指标、概览数据或推测结果替代。`;
+    return {
+      status: 'completed',
+      answer,
+      citations: [],
+      suggestedActions: [],
+      blocks: [{ kind: 'limitations', items: [answer] }],
+      grounding: 'none',
+      adapterMetadata: {
+        decisionCode: 'deterministic_honest_boundary',
+        completion: { status: 'complete', missingCriteria: [], recoverable: false },
+      },
+      modelMetadata,
+    };
+  }
+
+  private answerFromDeterministicFollowUpBoundary(
+    question: string,
+    modelMetadata: BrainModelMetadata,
+  ): BrainChatAnswer | undefined {
+    const build = (answer: string, missingSlots: string[]) => {
+      const pendingClarification: BrainModelPendingClarification = {
+        missingSlots,
+        questions: [answer],
+        ambiguities: [
+          {
+            slot: missingSlots[0] ?? 'resultRef',
+            reason: '多轮指代缺少可审计的上轮结果绑定',
+            candidates: ['补充明确对象', '重新查询可选择列表', '指定时间范围'],
+          },
+        ],
+      };
+      return {
+        status: 'completed',
+        answer,
+        citations: [],
+        suggestedActions: [],
+        blocks: [{ kind: 'clarification' as const, question: answer, options: [] }],
+        grounding: 'none' as const,
+        adapterMetadata: {
+          decisionCode: 'deterministic_follow_up_clarification_required',
+          clarification: pendingClarification,
+          completion: { status: 'partial', missingCriteria: missingSlots, recoverable: true },
+        },
+        modelContextPendingClarification: pendingClarification,
+        modelMetadata,
+      } satisfies BrainChatAnswer;
+    };
+    if (/(?:她|他).{0,24}(?:卡|次卡|储值卡|会员卡|权益).{0,16}(?:剩|余|还剩|能用)/u.test(question)) {
+      return build('为了准确处理，请补充客户姓名或手机号、卡项名称和服务项目；当前指代无法唯一绑定到上轮客户与卡项。', [
+        'customer',
+        'cardOrServiceRecord',
+      ]);
+    }
+    if (/^(?:那|那么|这个|该)?提成呢$/u.test(question)) {
+      return build('为了准确处理，请补充员工姓名和提成周期，或先选择上轮员工结果；当前无法仅凭“那提成呢”唯一绑定指标口径。', [
+        'employee',
+        'timeRange',
+      ]);
+    }
+    if (/第[一二三四五六七八九十\d]+个客户.{0,16}(?:注意事项|召回|跟进)/u.test(question)) {
+      return build('为了准确处理，请补充客户姓名或先查询可选择的客户列表；当前无法从上轮结果唯一绑定第几个客户。', [
+        'customer',
+      ]);
+    }
+    if (/(?:第[一二三四五六七八九十\d]+个|转化最好那个|转化最高那个).{0,16}(?:策略|活动|方案).{0,16}(?:再跑|执行|运行)/u.test(question)) {
+      return build('为了准确处理，请补充策略名称或先查询可选择的营销策略列表；当前 query_only 版本不会重新运行策略或发送触达。', [
+        'marketingStrategy',
+      ]);
+    }
+    if (/^跟最近三个月比呢$/u.test(question)) {
+      return build('为了准确处理，请补充要对比的指标和基准周期；当前无法仅凭上轮上下文确认是流水、客数、预约还是利润。', [
+        'metric',
+        'comparisonTarget',
+      ]);
+    }
+    if (/(?:它|这个|该).{0,8}(?:毛利|利润)(?:呢|是多少|怎么样)?$/u.test(question)) {
+      return build('为了准确处理，请补充项目名称或先选择上轮项目结果；当前无法仅凭指代词唯一绑定项目毛利口径。', [
+        'project',
+        'metric',
+      ]);
+    }
+    return undefined;
+  }
+
+  private rc350CapabilityBoundaryReason(question: string): string | undefined {
+    if (
+      /(?:[\u4e00-\u9fa5]{2,4}最近消费如何|哪些客户快流失了|(?:最近7天|今年)营销触达效果|[\u4e00-\u9fa5]{2,4}(?:最近7天|今年)几个任务|先看最近7天流水)/u.test(
+        question,
+      )
+    ) {
+      return '当前多轮测试所需的上轮可选择结果集尚未形成稳定事实包，Ami Brain 尚未接入可供后续指代绑定的客户、员工任务、营销策略或流水结果集口径。';
+    }
+    if (/(?:供应商|采购单|采购|报价|收货|交付|返点|资质)/u.test(question)) {
+      return '后台已有部分采购和库存数据，但 Ami Brain 尚未接入供应商报价、资质、采购单状态、交付质量和返点归因的统一事实口径。';
+    }
+    if (/(?:行业|标杆|行业服务模板|行业模板|行业基准|行业比)/u.test(question)) {
+      return '后台尚未配置可审计的行业知识快照、行业模板来源和同城标杆基准，Ami Brain 尚未接入行业对标事实口径。';
+    }
+    if (/(?:预约最满|排太满|到店高峰|预约转化率|爽约|空档太多|空档.{0,12}(?:安排|填|补位)|高峰人手|自动化触达失败率|触达太频繁|营销响应度|预测这个活动|转化)/u.test(question)) {
+      return '当前 Ami Brain 尚未接入预约时段容量、爽约归因、营销触达归因、活动转化预测和排班优化的完整事实口径。';
+    }
+    if (/(?:预测|预估).{0,12}(?:营销)?ROI|(?:营销)?ROI.{0,12}(?:预测|预估)|营销.{0,8}(?:投入产出|投产比)/iu.test(question)) {
+      return '当前 Ami Brain 尚未接入营销成本、归因收入、触达转化和开业至今累计 ROI 的统一预测口径。';
+    }
+    if (/(?:耗占比|实际耗材|耗材).*?(?:异常|趋势|多少)|(?:项目|护理).{0,12}调价/u.test(question)) {
+      return '后台已有项目、库存和部分耗材数据，但 Ami Brain 尚未接入按项目实际耗材、耗占比趋势和调价模拟的可审计口径。';
+    }
+    if (/(?:去年同期|这半年).{0,24}(?:经营利润|毛利率|成本结构|储值负债|日结|异常增长|变化趋势|拆解)/u.test(question)) {
+      return '当前 Ami Brain 尚未接入该同比/半年周期下的利润、成本、日结和储值负债复合分析口径。';
+    }
+    if (/(?:提成方案).{0,12}(?:优化|建议)/u.test(question)) {
+      return '后台已有员工表现和提成事实，但 Ami Brain 尚未接入兼顾激励效果、毛利边界和提成成本的提成方案优化口径。';
+    }
+    return undefined;
+  }
+
   private modelIntentTraceSummary(intent: BrainSemanticIntent) {
     return {
       schemaVersion: intent.schemaVersion,
@@ -4043,7 +4367,7 @@ export class BrainChatService {
     if (!resultSets.length && this.resultReferenceService.requiresPriorResultSelection(input.question)) {
       const requestedEntityType = this.resultReferenceService.requestedReferenceEntityType(input.question) ?? 'entity';
       const requestedLabel = this.modelEntityTypeLabel(requestedEntityType);
-      const question = `上轮没有返回可供选择的${requestedLabel}列表，无法继续绑定“第几个”或“最好那个”。请先查询对应${requestedLabel}列表，或直接说明具体名称。`;
+      const question = `上轮没有返回可供选择的${requestedLabel}列表，无法继续绑定“第几个”或“最好那个”。请补充具体${requestedLabel}名称，或先查询对应${requestedLabel}列表后再选择。`;
       return {
         status: 'completed',
         answer: question,
@@ -4468,11 +4792,15 @@ export class BrainChatService {
       /(?:提升|提高).*(?:客单价).*(?:主推|推荐|哪些项目)|(?:主推|推荐).*(?:项目|护理).*(?:提升|提高).*(?:客单价)/u.test(
         normalized,
       );
+    const seasonalProjectAdvice =
+      /(?:淡季|旺季).{0,16}(?:主推|推荐).{0,8}(?:什么|哪些)?(?:项目|护理|服务)|(?:主推|推荐).{0,8}(?:什么|哪些)?(?:项目|护理|服务).{0,16}(?:淡季|旺季)/u.test(
+        normalized,
+      );
     const explicitMutation =
       /(?:调价|价格).{0,12}(?:到|为)\s*\d|(?:直接|立即|马上).{0,8}(?:调价|改价|上架|下架)|(?:上架|下架).*(?:这个|该|项目|护理)/u.test(
         normalized,
       );
-    return projectSignal && (sellThroughAdvice || priceAdvice || averageOrderValueAdvice) && !explicitMutation;
+    return projectSignal && (sellThroughAdvice || priceAdvice || averageOrderValueAdvice || seasonalProjectAdvice) && !explicitMutation;
   }
 
   private findProjectOperatingAdviceCapabilityCard(
@@ -4989,6 +5317,14 @@ export class BrainChatService {
 
   private isGenericObjectiveQuestion(question: string): boolean {
     const normalized = question.trim().replace(/[\s？?。！!]+/g, '');
+    if (
+      /^(?:今天|昨日|昨天|前天|本周|上周|这周|本月|上月|上个月|这个月|这个季度|本季度|上季度|最近\d+天|近\d+天|最近三个月|近三个月|开业至今)(?:怎么样|如何|好不好|情况怎么样|表现如何)$/.test(
+        normalized,
+      )
+    ) {
+      return true;
+    }
+    if (/^(?:最近|近期|近来)?(?:生意|经营)(?:怎么样|如何|好不好)$/.test(normalized)) return true;
     return [
       '有什么问题吗',
       '有什么问题',

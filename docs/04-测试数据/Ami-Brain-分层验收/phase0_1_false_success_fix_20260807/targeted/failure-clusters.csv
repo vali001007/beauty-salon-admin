@@ -1,0 +1,5 @@
+case_id,domain,role,type,quality_bucket,failure_cluster,reason
+"BQ1297","财务域","财务","query_cross","suspected_false_success","suspected_false_success","答案未提供计算过程或引用具体数据，无法验证员工表现评分0.61及排名是否基于operation-profit×commission。缺少标准数值，无法确认正确性。"
+"BQ1298","财务域","财务","query_cross","suspected_false_success","suspected_false_success","答案仅给出毛利率，未计算经营利润×佣金，且未提供任何数值或引用依据，无法验证目标对齐与事实正确性。"
+"BQ1299","财务域","财务","query_cross","suspected_false_success","suspected_false_success","回答未提供任何计算或数据，仅要求补充口径，无法验证目标对齐或事实依据。"
+"BQ1563","营销域","营销","analysis","suspected_false_success","suspected_false_success","回答未提供任何营销效果分析，仅要求补充指标口径，未对齐目标，且无引用依据。"

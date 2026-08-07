@@ -6,6 +6,15 @@ export interface AmiBrainLatencyDistribution {
   maxMs: number | null;
 }
 
+export interface AmiBrainProviderFailureAttribution {
+  provider?: string;
+  model?: string;
+  routeMode?: string;
+  errorCategory: 'provider_unavailable' | 'provider_auth_failed' | 'timeout' | 'network' | 'schema' | 'judge' | 'business' | 'unknown';
+  latencyMs: number | null;
+  attemptCount: number;
+}
+
 export function resolveAmiBrainUserResponseLatencyMs(input: {
   startedAtMs: number;
   answerReadyAtMs?: number;
@@ -88,6 +97,75 @@ export function summarizeAmiBrainEvalLatencies(rows: Array<{ latencyMs?: number 
   };
 }
 
+export function summarizeAmiBrainEvalFailureAttribution(
+  rows: Array<{ failureCluster?: string | null; error?: string | null; latencyMs?: number | null; metadata?: unknown }>,
+) {
+  const providerFailures = rows.flatMap((row) => providerFailureAttribution(row));
+  const businessAbilityFailures = rows.filter((row) =>
+    ['answer_not_grounded', 'multi_turn_not_continued', 'ambiguity_not_clarified', 'suspected_false_success'].includes(
+      String(row.failureCluster ?? ''),
+    ),
+  ).length;
+  const judgeFailures = rows.filter((row) => /judge/i.test(String(row.failureCluster ?? row.error ?? ''))).length;
+  const dataOrPermissionFailures = rows.filter((row) =>
+    /permission|denied|no_data|data/i.test(String(row.failureCluster ?? row.error ?? '')),
+  ).length;
+  return {
+    providerUnavailable: providerFailures.length,
+    businessAbilityFailures,
+    judgeFailures,
+    dataOrPermissionFailures,
+    providerFailures,
+  };
+}
+
+export function providerFailureAttribution(row: {
+  failureCluster?: string | null;
+  error?: string | null;
+  latencyMs?: number | null;
+  metadata?: unknown;
+}): AmiBrainProviderFailureAttribution[] {
+  const failureCluster = String(row.failureCluster ?? '');
+  const error = String(row.error ?? '');
+  if (/judge/i.test(failureCluster)) return [];
+  const metadata = record(row.metadata);
+  const route = record(metadata.route);
+  const runtimeModel = record(record(metadata.evidence).runtimeModel);
+  const provider = stringValue(runtimeModel.provider) ?? stringValue(route.provider) ?? stringValue(metadata.provider);
+  const model = stringValue(runtimeModel.model) ?? stringValue(route.model) ?? stringValue(metadata.model);
+  const routeMode = stringValue(runtimeModel.routeMode) ?? stringValue(route.routeMode) ?? stringValue(metadata.routeMode);
+  const attempts = positiveFiniteNumber(metadata.attemptCount) ?? positiveFiniteNumber(route.attemptCount) ?? 1;
+  const category = classifyProviderError(`${failureCluster} ${error}`);
+  if (
+    failureCluster !== 'provider_unavailable' &&
+    !['provider_unavailable', 'provider_auth_failed', 'timeout', 'network'].includes(category)
+  ) {
+    return [];
+  }
+  return [
+    {
+      ...(provider ? { provider } : {}),
+      ...(model ? { model } : {}),
+      ...(routeMode ? { routeMode } : {}),
+      errorCategory: category,
+      latencyMs: positiveFiniteNumber(row.latencyMs),
+      attemptCount: Math.max(1, Math.round(attempts)),
+    },
+  ];
+}
+
+function classifyProviderError(value: string): AmiBrainProviderFailureAttribution['errorCategory'] {
+  const normalized = value.toLocaleLowerCase('en-US');
+  if (/auth|401|403|api[_ -]?key|credential/.test(normalized)) return 'provider_auth_failed';
+  if (/timeout|timed out|deadline/.test(normalized)) return 'timeout';
+  if (/network|econn|enotfound|fetch failed|socket/.test(normalized)) return 'network';
+  if (/schema|json/.test(normalized)) return 'schema';
+  if (/judge/.test(normalized)) return 'judge';
+  if (/provider|unavailable|circuit/.test(normalized)) return 'provider_unavailable';
+  if (/answer_not_grounded|multi_turn|ambiguity|false_success/.test(normalized)) return 'business';
+  return 'unknown';
+}
+
 function distribution(values: Array<number | null | undefined>): AmiBrainLatencyDistribution {
   const recorded = values
     .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0)
@@ -111,6 +189,10 @@ function positiveFiniteNumber(value: unknown) {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function finiteTimestamp(value: unknown, field: string) {

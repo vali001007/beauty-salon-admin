@@ -371,6 +371,8 @@ describe('Brain governance V2 workbench', () => {
         newPolicyReleaseId: 460,
         oldRuntimeReleaseId: 452,
         runtimeSequenceId: 71,
+        evidenceReceiptId: 904,
+        evidenceReceipt: { id: 904, receiptKey: 'release-receipt', stage: 'release', status: 'passed', trustLevel: 'verified_release', verificationStatus: 'verified', issuerType: 'release_service', issuer: 'Release Acceptance', gates: [] },
         oldPolicy: { id: 436, releaseKey: 'legacy-policy', scope: 'governance_policy', status: 'archived', createdAt: '2026-08-01T00:00:00.000Z', productIdentity: { family: 'policy', code: 'GP-002', stageCode: null, name: 'Legacy Shadow Policy', internalReleaseId: 436 }, retiredAt: '2026-08-04T00:10:00.000Z' },
         newPolicy: { id: 460, releaseKey: 'query-only-policy', scope: 'governance_policy', status: 'active', createdAt: '2026-08-04T00:00:00.000Z', productIdentity: { family: 'policy', code: 'GP-003', stageCode: null, name: 'Query Only V1 强制治理策略', internalReleaseId: 460 }, items: [] },
         oldRuntime: { id: 452, releaseKey: 'legacy-runtime', scope: 'global', status: 'archived', createdAt: '2026-08-01T00:00:00.000Z', productIdentity: { family: 'legacy', code: 'LEGACY-RT-452', stageCode: null, name: 'Governance Shadow Runtime', internalReleaseId: 452 } },
@@ -414,6 +416,68 @@ describe('Brain governance V2 workbench', () => {
     state.permissions = new Set(['core:brain-governance:view', 'core:brain-governance:publish', 'core:brain-governance:release']);
     renderPage(<BrainGovernanceOverviewPage />, '/brain-governance/workbench?tab=overview');
     expect(await screen.findByRole('button', { name: '完成退役' })).toBeInTheDocument();
+  });
+
+  it('does not expose final retirement on prerelease evidence even if the RT stage data reaches Full', async () => {
+    state.permissions = new Set(['core:brain-governance:view', 'core:brain-governance:publish', 'core:brain-governance:release']);
+    brainApi.listBrainGovernanceCandidates.mockResolvedValue({
+      items: [{ id: 17, candidateKey: 'repo:head:merge', headCommit: '3'.repeat(40), status: 'observing' }],
+      total: 1,
+      page: 1,
+      pageSize: 3,
+    });
+    brainApi.listBrainGovernanceTransitions.mockResolvedValue({
+      items: [{
+        id: 81,
+        transitionKey: 'transition-query-only-v1',
+        status: 'observing',
+        candidateId: 17,
+        candidate: { id: 17, candidateKey: 'repo:head:merge', headCommit: '3'.repeat(40), status: 'observing' },
+        oldPolicyReleaseId: 436,
+        newPolicyReleaseId: 460,
+        oldRuntimeReleaseId: 452,
+        runtimeSequenceId: 71,
+        evidenceReceiptId: 903,
+        evidenceReceipt: { id: 903, receiptKey: 'prerelease-receipt', stage: 'prerelease', status: 'passed', trustLevel: 'verified_prerelease', verificationStatus: 'verified', issuerType: 'release_service', issuer: 'Release Acceptance', gates: [] },
+        oldPolicy: { id: 436, releaseKey: 'legacy-policy', scope: 'governance_policy', status: 'archived', createdAt: '2026-08-01T00:00:00.000Z', productIdentity: { family: 'policy', code: 'GP-002', stageCode: null, name: 'Legacy Shadow Policy', internalReleaseId: 436 } },
+        newPolicy: { id: 460, releaseKey: 'query-only-policy', scope: 'governance_policy', status: 'active', createdAt: '2026-08-04T00:00:00.000Z', productIdentity: { family: 'policy', code: 'GP-003', stageCode: null, name: 'Query Only V1 强制治理策略', internalReleaseId: 460 }, items: [] },
+        oldRuntime: { id: 452, releaseKey: 'legacy-runtime', scope: 'global', status: 'archived', createdAt: '2026-08-01T00:00:00.000Z', productIdentity: { family: 'legacy', code: 'LEGACY-RT-452', stageCode: null, name: 'Governance Shadow Runtime', internalReleaseId: 452 } },
+        runtimeSequence: {
+          id: 71,
+          sequenceKey: 'rollout:17:head',
+          runtimeVersionCode: 'RT-001',
+          displayName: 'Query Only V1',
+          productProfile: 'query_only_v1',
+          admissionPhase: 'prerelease',
+          productIdentity: { family: 'runtime', code: 'RT-001', stageCode: null, name: 'Query Only V1', internalReleaseId: null },
+          status: 'completed',
+          currentStage: 'full',
+          governanceMode: 'enforced',
+          promotionPolicy: {},
+          healthThresholds: {},
+          candidateId: 17,
+          candidate: { id: 17, candidateKey: 'repo:head:merge' },
+          policySnapshot: { id: 460, releaseKey: 'query-only-policy', scope: 'governance_policy', status: 'active', createdAt: '2026-08-04T00:00:00.000Z' },
+          releases: [{ id: 501, rolloutStage: 'full', status: 'active', productIdentity: { family: 'runtime', code: 'RT-001', stageCode: 'RT-001-FULL', name: 'Query Only V1', internalReleaseId: 501 } }],
+          createdAt: '2026-08-04T00:00:00.000Z',
+          updatedAt: '2026-08-04T00:20:00.000Z',
+        },
+        policyApprovedAt: '2026-08-04T00:05:00.000Z',
+        runtimeApprovedAt: '2026-08-04T00:06:00.000Z',
+        currentStep: 'runtime_shadow_active',
+        createdBy: 9,
+        createdAt: '2026-08-04T00:00:00.000Z',
+        updatedAt: '2026-08-04T00:20:00.000Z',
+      }],
+      total: 1,
+      page: 1,
+      pageSize: 5,
+    });
+
+    renderPage(<BrainGovernanceOverviewPage />, '/brain-governance/workbench?tab=overview');
+
+    expect(await screen.findByText(/预发布演练：五门禁，只允许 Shadow → C05/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '完成退役' })).not.toBeInTheDocument();
   });
 
   it('never attaches an unfinished transition from a different Candidate', async () => {
@@ -651,6 +715,7 @@ describe('Brain governance V2 workbench', () => {
       history: [highRiskPolicy],
       evidence: [
         { id: 1, receiptKey: 'trusted', trustLevel: 'trusted_candidate', verificationStatus: 'verified', status: 'passed', expiresAt: '2099-01-01T00:00:00.000Z' },
+        { id: 5, receiptKey: 'trusted-prerelease', trustLevel: 'verified_prerelease', verificationStatus: 'verified', status: 'passed', expiresAt: '2099-01-01T00:00:00.000Z' },
         { id: 2, receiptKey: 'expired', trustLevel: 'trusted_candidate', verificationStatus: 'verified', status: 'passed', expiresAt: '2020-01-01T00:00:00.000Z' },
         { id: 3, receiptKey: 'stale', trustLevel: 'trusted_candidate', verificationStatus: 'verified', status: 'stale', expiresAt: '2099-01-01T00:00:00.000Z' },
         { id: 4, receiptKey: 'bad-signature', trustLevel: 'trusted_candidate', verificationStatus: 'rejected', verificationError: 'signature_invalid', status: 'passed', expiresAt: '2099-01-01T00:00:00.000Z' },
@@ -666,7 +731,8 @@ describe('Brain governance V2 workbench', () => {
     await user.click(screen.getByRole('button', { name: '详情' }));
 
     expect(await screen.findByText('可信证据')).toBeInTheDocument();
-    expect(screen.getByText(/有效至/)).toBeInTheDocument();
+    expect(screen.getByText(/trusted-prerelease · verified_prerelease · passed/)).toBeInTheDocument();
+    expect(screen.getAllByText(/有效至/)).toHaveLength(2);
     expect(screen.getByText(/已于.*过期/)).toBeInTheDocument();
     expect(screen.getByText('候选身份或能力证据已变化，当前不可复用')).toBeInTheDocument();
     expect(screen.getByText('验签失败：signature_invalid')).toBeInTheDocument();

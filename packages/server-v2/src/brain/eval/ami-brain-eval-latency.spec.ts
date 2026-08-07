@@ -1,6 +1,8 @@
 import {
   buildBrainRunLatencyBreakdown,
+  providerFailureAttribution,
   resolveAmiBrainUserResponseLatencyMs,
+  summarizeAmiBrainEvalFailureAttribution,
   summarizeAmiBrainEvalLatencies,
 } from './ami-brain-eval-latency.js';
 
@@ -116,5 +118,64 @@ describe('Ami Brain evaluation latency evidence', () => {
         },
       ],
     });
+  });
+
+  it('attributes provider unavailable separately from product capability failures', () => {
+    expect(
+      summarizeAmiBrainEvalFailureAttribution([
+        {
+          failureCluster: 'provider_unavailable',
+          error: 'AI structured output request timed out.',
+          latencyMs: 10_392,
+          metadata: {
+            evidence: { runtimeModel: { provider: 'deepseek', model: 'deepseek-v4-flash', routeMode: 'primary' } },
+            attemptCount: 3,
+          },
+        },
+        { failureCluster: 'answer_not_grounded', latencyMs: 8_000 },
+        { failureCluster: 'multi_turn_not_continued', latencyMs: 9_000 },
+        { failureCluster: 'permission_not_denied', error: 'permission denied' },
+        { failureCluster: 'judge_failed', error: 'judge timeout' },
+      ]),
+    ).toMatchObject({
+      providerUnavailable: 1,
+      businessAbilityFailures: 2,
+      judgeFailures: 1,
+      dataOrPermissionFailures: 1,
+      providerFailures: [
+        {
+          provider: 'deepseek',
+          model: 'deepseek-v4-flash',
+          routeMode: 'primary',
+          errorCategory: 'timeout',
+          latencyMs: 10392,
+          attemptCount: 3,
+        },
+      ],
+    });
+  });
+
+  it('redacts provider attribution to public route metadata only', () => {
+    expect(
+      providerFailureAttribution({
+        failureCluster: 'provider_unavailable',
+        error: '401 invalid api key',
+        metadata: {
+          provider: 'deepseek',
+          model: 'deepseek-v4-flash',
+          apiKey: 'sk-secret',
+          DATABASE_URL: 'postgresql://secret',
+        },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        errorCategory: 'provider_auth_failed',
+      }),
+    ]);
+    expect(JSON.stringify(providerFailureAttribution({ failureCluster: 'provider_unavailable', metadata: {} }))).not.toMatch(
+      /secret|postgresql|sk-/,
+    );
   });
 });

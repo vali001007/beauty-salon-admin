@@ -297,6 +297,10 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
         );
         const asksAverageOrderValueRecommendation =
           /(?:提升|提高).*(?:客单价).*(?:主推|推荐)|(?:主推|推荐).*(?:客单价)/.test(input.question);
+        const asksSeasonalProjectRecommendation =
+          /(?:淡季|旺季).{0,16}(?:主推|推荐).{0,8}(?:什么|哪些)?(?:项目|护理|服务)|(?:主推|推荐).{0,8}(?:什么|哪些)?(?:项目|护理|服务).{0,16}(?:淡季|旺季)/u.test(
+            input.question,
+          );
         const asksSellThroughRisk = /卖不动|销量(?:太)?低|销售(?:太)?少/.test(input.question);
         const asksPriceAdvice = /(?:该不该|是否|要不要).*(?:调价)|(?:调价).*(?:建议|该不该|是否|要不要)/.test(
           input.question,
@@ -367,6 +371,15 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
                 right.contributionProfit - left.contributionProfit
               );
             }
+            if (asksSeasonalProjectRecommendation) {
+              const leftEligible = Number(left.contributionProfit > 0 && !left.missingCostReasons.length);
+              const rightEligible = Number(right.contributionProfit > 0 && !right.missingCostReasons.length);
+              return (
+                rightEligible - leftEligible ||
+                right.marginRate - left.marginRate ||
+                right.serviceIncome - left.serviceIncome
+              );
+            }
             if (asksPopularButLowSales || asksSellThroughRisk) {
               return left.serviceCount - right.serviceCount || left.serviceIncome - right.serviceIncome;
             }
@@ -399,6 +412,7 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
           asksProjectRepurchase ||
           asksPopularButLowSales ||
           asksAverageOrderValueRecommendation ||
+          asksSeasonalProjectRecommendation ||
           asksSellThroughRisk ||
           asksPriceAdvice ||
           asksZeroSales ||
@@ -415,6 +429,10 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
               ? first
                 ? `${projectRange.label}若目标是人工提升客单价，可优先评估 ${first.projectName}：标准价 ${first.standardPrice.toFixed(2)} 元、成交均价 ${first.avgDealPrice.toFixed(2)} 元、贡献毛利 ${first.contributionProfit.toFixed(2)} 元。建议先核对客户适配、成本缺口和档期；本次只提供经营候选，不执行推荐、调价或上架。`
                 : `${projectRange.label}当前没有同时具备真实销量和可计算项目毛利的数据，无法形成可靠的客单价主推候选。`
+              : asksSeasonalProjectRecommendation
+                ? first
+                  ? `${projectRange.label}若目标是淡旺季人工主推项目，可优先评估 ${first.projectName}：服务 ${first.serviceCount} 次、收入 ${first.serviceIncome.toFixed(2)} 元、毛利率 ${first.marginRate}、贡献毛利 ${first.contributionProfit.toFixed(2)} 元。建议先核对季节性需求、客户适配、耗材成本和档期；本次只提供经营候选，不发布活动、不自动推荐。`
+                  : `${projectRange.label}当前没有同时具备真实销量和可计算项目毛利的数据，无法形成可靠的淡旺季主推候选。`
               : asksSellThroughRisk
                 ? first
                   ? `${projectRange.label}${first.projectName}服务 ${first.serviceCount} 次、收入 ${first.serviceIncome.toFixed(2)} 元、成交均价 ${first.avgDealPrice.toFixed(2)} 元、贡献毛利 ${first.contributionProfit.toFixed(2)} 元。是否“卖不动”仍应与同店其他项目和上一周期人工复核；本次不自动调价或下架。`
@@ -495,6 +513,8 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
                 ? 'project_reputation_sales_boundary'
                 : asksAverageOrderValueRecommendation
                   ? 'project_average_order_value_candidates'
+                  : asksSeasonalProjectRecommendation
+                    ? 'project_seasonal_recommendation_candidates'
                   : asksSellThroughRisk
                     ? 'project_sell_through_review'
                     : asksPriceAdvice
@@ -663,17 +683,25 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
           endDate: range.endDate,
         });
         const rate = cost.revenue > 0 ? cost.materialCost / cost.revenue : undefined;
+        const asksMaterialCostControl =
+          /(?:控制|降低|压降|优化).{0,8}(?:耗材|物料|材料).{0,8}(?:成本|成本率)|(?:耗材|物料|材料).{0,8}(?:成本|成本率).{0,8}(?:控制|降低|压降|优化)|怎么控制耗材成本/u.test(
+            input.question,
+          );
         const citation = {
           sourceType: 'db_skill',
           sourceId: 'finance_cost_analysis',
           label: '财务收入与耗材成本分析',
         };
+        const answer = asksMaterialCostControl
+          ? `${range.label}耗材成本 ${cost.materialCost.toFixed(2)} 元${rate === undefined ? '，当前缺少可计算占比的收入' : `，占已接入收入 ${(rate * 100).toFixed(1)}%`}。控制建议：1. 先复核高耗材项目和标准 BOM 是否一致；2. 优先压降低毛利项目的耗材浪费；3. 对无实际耗材记录的项目补采集；4. 保持只读核查，当前不自动改库存、不调整项目价格。`
+          : `${range.label}耗材成本 ${cost.materialCost.toFixed(2)} 元${rate === undefined ? '，当前缺少可计算占比的收入' : `，占已接入收入 ${(rate * 100).toFixed(1)}%`}。`;
         return {
           status: 'completed',
-          answer: `${range.label}耗材成本 ${cost.materialCost.toFixed(2)} 元${rate === undefined ? '，当前缺少可计算占比的收入' : `，占已接入收入 ${(rate * 100).toFixed(1)}%`}。`,
+          answer,
           citations: [citation],
           grounding: 'db_skill',
           blocks: [
+            ...(asksMaterialCostControl ? [{ kind: 'text' as const, text: answer }] : []),
             {
               kind: 'kpi',
               items: [
@@ -686,7 +714,11 @@ export class BrainFocusedBusinessCapabilityExecutor implements BrainCapabilityEx
           metadata: {
             capabilityKey,
             answerScope: 'material_cost_scalar',
-            completionCriteria: ['material_cost_loaded', 'revenue_denominator_disclosed'],
+            completionCriteria: [
+              'material_cost_loaded',
+              'revenue_denominator_disclosed',
+              ...(asksMaterialCostControl ? ['readonly_cost_control_advice_disclosed'] : []),
+            ],
           },
         };
       }

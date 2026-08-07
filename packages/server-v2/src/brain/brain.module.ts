@@ -126,6 +126,7 @@ import { BrainObservationService } from './execution/brain-observation.service.j
 import { BrainCompletionVerifierService } from './execution/brain-completion-verifier.service.js';
 import { BrainBoundedExecutorService } from './execution/brain-bounded-executor.service.js';
 import { BrainAnswerCompletionGuardService } from './response/brain-answer-completion-guard.service.js';
+import { BrainEvidencePacketService } from './response/brain-evidence-packet.service.js';
 import { BrainGroundedAnswerComposerService } from './response/brain-grounded-answer-composer.service.js';
 import { BrainRoleContextBuilderService } from './role/brain-role-context-builder.service.js';
 import { BrainPermissionService } from './security/brain-permission.service.js';
@@ -284,6 +285,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainCompletionVerifierService,
     BrainBoundedExecutorService,
     BrainAnswerCompletionGuardService,
+    BrainEvidencePacketService,
     BrainGroundedAnswerComposerService,
     BrainKnowledgeGraphService,
     BrainMetricRegistryService,
@@ -427,6 +429,7 @@ import { AgentV2BusinessMetricQueryService } from '../agent-v2/tools/agent-v2-bu
     BrainCompletionVerifierService,
     BrainBoundedExecutorService,
     BrainAnswerCompletionGuardService,
+    BrainEvidencePacketService,
     BrainGroundedAnswerComposerService,
     BrainKnowledgeGraphService,
     BrainMetricRegistryService,

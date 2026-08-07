@@ -134,6 +134,61 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.suggestedActions).toBeUndefined();
   });
 
+  it('discloses missing governed cost facts for acquisition cost trends', async () => {
+    const skillRuntime = {
+      buildMarketingAnalytics: jest.fn(),
+      buildMarketingFollowUpPrioritySnapshot: jest.fn(),
+    };
+    const customerFacts = {
+      getNewCustomerConversionSummary: jest.fn().mockResolvedValue({
+        newCustomerCount: 14,
+        convertedCustomerCount: 7,
+        unconvertedCustomerCount: 7,
+        conversionRate: 0.5,
+      }),
+      summarizeCustomerSegments: jest.fn(),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      customerFacts as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_growth_overview', name: '营销增长概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'marketing-acquisition-cost-boundary-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 10,
+      question: '最近7天拓客成本的趋势', // BQ1563
+      answerShape: 'trend',
+      args: {
+        objective: '查看拓客成本趋势',
+        entities: [],
+        metrics: [{ definitionKey: 'metric.customer_acquisition_cost', definitionVersion: 1 }],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(skillRuntime.buildMarketingAnalytics).not.toHaveBeenCalled();
+    expect(result.answer).toContain('当前未发布可核验的营销成本事实，不能生成最近 7 天拓客成本趋势');
+    expect(result.answer).toContain('公式：拓客成本=营销成本/转化客户数');
+    expect(result.answer).toContain('新增客户 14 人，首单转化 7 人，转化率 50.0%');
+    expect(result.metadata).toMatchObject({
+      answerScope: 'marketing_acquisition_cost_trend_boundary',
+      unsupportedReason: 'marketing_cost_fact_not_governed',
+    });
+  });
+
   it('uses the recall template only when the user actually asks for recall', async () => {
     const skillRuntime = {
       draftAppointmentReminder: jest.fn(),
@@ -185,6 +240,60 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
 
     expect(skillRuntime.draftCustomerRecall).toHaveBeenCalledWith({});
     expect(result.metadata).toMatchObject({ mode: 'customer_recall' });
+  });
+
+  it('grounds BQ1634 recall advice with strategy basis, expected metrics, and read-only boundaries', async () => {
+    const skillRuntime = {
+      draftAppointmentReminder: jest.fn(),
+      draftCustomerRecall: jest.fn().mockReturnValue('您好，最近护理节奏可以衔接起来了。'),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_message_draft', intents: ['draft'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'marketing-recall-strategy-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 11,
+      question: '流失客户召回该用什么策略和话术', // BQ1634
+      answerShape: 'draft',
+      args: {
+        objective: '生成流失客户召回策略和话术',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('分层召回');
+    expect(result.answer).toContain('策略依据');
+    expect(result.answer).toContain('预期观察指标');
+    expect(result.answer).toContain('话术草稿');
+    expect(result.answer).toContain('未查询具体客户名单');
+    expect(result.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceId: 'marketing_draft_customer_recall' }),
+        expect.objectContaining({ sourceId: 'marketing_recall_strategy_boundary' }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      mode: 'customer_recall',
+      answerScope: 'recall_strategy_and_script_draft',
+      deliveryStatus: 'draft_only',
+    });
   });
 
   it('uses only a server-verified customer result reference in a recall draft', async () => {
@@ -4680,6 +4789,8 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     });
     expect(scalar.answer).toContain('毛利率 66.78%');
     expect(scalar.answer).toContain('储值负债 1164127.56 元');
+    expect(scalar.answer).toContain('公式：毛利率=毛利/收入=667.80/1000.00=66.78%');
+    expect(scalar.answer).toContain('口径：储值负债=当前有效储值账户现金余额+赠送余额=1164127.56 元');
 
     const inferredScalar = await executor.execute({
       ...base,
@@ -4697,9 +4808,10 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       },
     });
     expect(inferredScalar.answer).toContain('毛利 667.80 元');
-    expect(inferredScalar.blocks).toEqual([
+    expect(inferredScalar.blocks).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: 'kpi', items: [{ label: '毛利', value: '667.80 元' }] }),
-    ]);
+      expect.objectContaining({ kind: 'text', text: expect.stringContaining('口径：毛利取权威日结') }),
+    ]));
 
     const ratioScalar = await executor.execute({
       ...base,
@@ -4717,6 +4829,43 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
       },
     });
     expect(ratioScalar.answer).toContain('成本收入比 35.00%');
+    expect(ratioScalar.answer).toContain('公式：成本收入比=(耗材成本+提成成本+运营成本)/收入=(200.00+100.00+50.00)/1000.00=35.00%');
+
+    const unfulfilledCardLiability = await executor.execute({
+      ...base,
+      runId: 753,
+      question: '次卡未履约负债有多少', // BQ1299
+      answerShape: 'scalar',
+      args: {
+        objective: '查询次卡未履约负债',
+        entities: [],
+        metrics: [{ definitionKey: 'metric.unfulfilled_card_liability', definitionVersion: 1 }],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+    expect(unfulfilledCardLiability.answer).toContain('次卡未履约负债 1066931.14 元');
+    expect(unfulfilledCardLiability.answer).toContain('公式：次卡未履约负债=有效次卡剩余次数×单次确认价值汇总=1066931.14 元');
+
+    const storedValueAdvice = await executor.execute({
+      ...base,
+      runId: 754,
+      question: '储值负债太高有什么风险怎么办', // BQ1447
+      answerShape: 'diagnosis',
+      args: {
+        objective: '诊断储值负债风险并给出建议',
+        entities: [],
+        metrics: [{ definitionKey: 'metric.stored_value_liability', definitionVersion: 1 }],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+    expect(storedValueAdvice.answer).toContain('储值负债 1164127.56 元');
+    expect(storedValueAdvice.answer).toContain('风险：储值负债代表客户已付款但尚未消耗的履约义务');
+    expect(storedValueAdvice.answer).toContain('建议：按会员分层拆分余额与近 30 天消耗速度');
+    expect(storedValueAdvice.blocks).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'diagnosis' })]));
 
     const reconciliation = await executor.execute({
       ...base,
@@ -4831,6 +4980,79 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(skillRuntime.buildFinanceStaffCommissionRows).not.toHaveBeenCalled();
     expect(result.metadata).toMatchObject({ unsupportedReason: 'beautician_entity_reference_ambiguous' });
     expect(result.answer).toContain('一次只能查询一位美容师');
+  });
+
+  it('summarizes commission by all beauticians without requiring one concrete entity', async () => {
+    const skillRuntime = {
+      buildFinanceStaffCommissionRows: jest.fn().mockResolvedValue([
+        { beauticianId: 19, beauticianName: '顾然', commissionType: 'project', amount: 152.91 },
+        { beauticianId: 19, beauticianName: '顾然', commissionType: 'product', amount: 45.3 },
+        { beauticianId: 12, beauticianName: '宋乔', commissionType: 'project', amount: 80 },
+      ]),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'finance_risk_overview', name: '财务经营风险概览' },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['store_manager'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'all-beautician-commission-summary-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 779,
+      question: '昨天各美容师的提成汇总', // BQ1297
+      answerShape: 'list',
+      args: {
+        objective: '查看各美容师提成汇总',
+        entities: [],
+        metrics: [{ definitionKey: 'metric.staff_commission_component_amount', definitionVersion: 1 }],
+        dimensions: [
+          { definitionKey: 'dimension.beauticianName', definitionVersion: 1 },
+          { definitionKey: 'dimension.commissionType', definitionVersion: 1 },
+        ],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(skillRuntime.buildFinanceStaffCommissionRows).toHaveBeenCalledWith(
+      expect.not.objectContaining({ beauticianId: expect.any(Number) }),
+    );
+    expect(result.answer).toContain('各美容师提成合计 278.21 元');
+    expect(result.answer).toContain('公式：美容师提成汇总');
+    expect(result.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'table',
+        rows: [
+          {
+            beauticianId: 19,
+            beauticianName: '顾然',
+            totalCommission: 198.21,
+            components: 'project:152.91；product:45.30',
+          },
+          {
+            beauticianId: 12,
+            beauticianName: '宋乔',
+            totalCommission: 80,
+            components: 'project:80.00',
+          },
+        ],
+      }),
+    ]));
+    expect(result.metadata).toMatchObject({
+      answerScope: 'staff_commission_summary_by_beautician',
+      beauticianCount: 2,
+      totalCommission: 278.21,
+    });
   });
 
   it('returns recognized revenue for the longest matching card name at an explicit cutoff timestamp', async () => {
@@ -5986,13 +6208,15 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     });
 
     expect(result.answer).toContain('本月毛利率 59.50%');
+    expect(result.answer).toContain('公式：毛利率=毛利/收入=595.00/1000.00=59.50%');
     expect(result.answer).not.toContain('会员卡负债');
-    expect(result.blocks).toEqual([
+    expect(result.blocks).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: 'kpi',
         items: [{ label: '毛利率', value: '59.50%' }],
       }),
-    ]);
+      expect.objectContaining({ kind: 'text', text: expect.stringContaining('公式：毛利率=毛利/收入') }),
+    ]));
     expect(result.metadata).toMatchObject({
       answerScope: 'structured_finance_metrics',
       requestedMetricKeys: ['metric.gross_margin_rate'],
