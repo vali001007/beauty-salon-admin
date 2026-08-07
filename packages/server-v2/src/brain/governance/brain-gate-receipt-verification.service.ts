@@ -14,7 +14,7 @@ const jsonwebtoken = (jsonwebtokenModule as typeof jsonwebtokenModule & {
 }).default ?? jsonwebtokenModule;
 const { decode: decodeJwt, verify: verifyJwt } = jsonwebtoken;
 
-const RECEIPT_STAGES = ['candidate', 'release', 'observe'] as const;
+const RECEIPT_STAGES = ['candidate', 'prerelease', 'release', 'observe'] as const;
 const RECEIPT_RISK_LEVELS = ['low', 'medium', 'high', 'critical'] as const;
 const HEX_64 = /^[a-f0-9]{64}$/;
 const CAPABILITY_KEY = /^[a-z][a-z0-9_]{1,127}$/;
@@ -27,6 +27,9 @@ const QUERY_ONLY_REQUIRED_RELEASE_GATES = [
   'provider_fallback',
   'rollback_drill',
 ] as const;
+const QUERY_ONLY_REQUIRED_PRERELEASE_GATES = QUERY_ONLY_REQUIRED_RELEASE_GATES.filter(
+  (gateKey) => gateKey !== 'rollback_drill',
+);
 const QUERY_ONLY_RELEASE_CAPABILITIES = [
   ...BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
   ...BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
@@ -42,7 +45,7 @@ const GITHUB_OIDC_JWKS = new JwksClient({
 export interface VerifiedBrainGateReceipt {
   receipt: Record<string, unknown>;
   issuer: string;
-  trustLevel: 'untrusted_dev' | 'trusted_candidate' | 'verified_release';
+  trustLevel: 'untrusted_dev' | 'trusted_candidate' | 'verified_prerelease' | 'verified_release';
   admissionEligible: boolean;
   identityChecksum: string;
   resultChecksum: string;
@@ -179,7 +182,7 @@ export class BrainGateReceiptVerificationService {
     const evalRunId = optionalPositiveInteger(input.evalRunId, 'receipt_eval_run_id_invalid');
     const evaluationReleaseId = optionalPositiveInteger(input.evaluationReleaseId, 'receipt_evaluation_release_id_invalid');
 
-    if (stage === 'release') {
+    if (stage === 'prerelease' || stage === 'release') {
       const releaseIssuers = envList('BRAIN_GOVERNANCE_RECEIPT_RELEASE_ISSUERS');
       if (!releaseIssuers.length) throw new BadRequestException('release_receipt_issuer_allowlist_missing');
       if (!releaseIssuers.includes(issuer)) throw new BadRequestException('release_receipt_issuer_not_allowed');
@@ -230,16 +233,19 @@ export class BrainGateReceiptVerificationService {
     if (!Array.isArray(capabilities) || capabilities.some((key) => !CAPABILITY_KEY.test(String(key)))) {
       throw new BadRequestException('receipt_capabilities_invalid');
     }
-    if (stage === 'release') {
+    if (stage === 'prerelease' || stage === 'release') {
+      const requiredGates = stage === 'prerelease'
+        ? QUERY_ONLY_REQUIRED_PRERELEASE_GATES
+        : QUERY_ONLY_REQUIRED_RELEASE_GATES;
       const gateKeys = results.map((result) => String(record(result).gateKey ?? record(result).gateId ?? '')).filter(Boolean);
       const planGateKeys = Array.isArray(record(input.plan).gates)
         ? (record(input.plan).gates as unknown[]).map((gate) => String(record(gate).id ?? '')).filter(Boolean)
         : [];
-      if (gateKeys.length !== QUERY_ONLY_REQUIRED_RELEASE_GATES.length
-        || planGateKeys.length !== QUERY_ONLY_REQUIRED_RELEASE_GATES.length
-        || !sameStringSet(gateKeys, [...QUERY_ONLY_REQUIRED_RELEASE_GATES])
-        || !sameStringSet(planGateKeys, [...QUERY_ONLY_REQUIRED_RELEASE_GATES])) {
-        throw new BadRequestException('release_receipt_gate_manifest_invalid');
+      if (gateKeys.length !== requiredGates.length
+        || planGateKeys.length !== requiredGates.length
+        || !sameStringSet(gateKeys, [...requiredGates])
+        || !sameStringSet(planGateKeys, [...requiredGates])) {
+        throw new BadRequestException(`${stage}_receipt_gate_manifest_invalid`);
       }
       if (capabilities.length !== QUERY_ONLY_RELEASE_CAPABILITIES.length
         || !sameStringSet(capabilities.map(String), QUERY_ONLY_RELEASE_CAPABILITIES)) {
@@ -253,13 +259,17 @@ export class BrainGateReceiptVerificationService {
 
     const trustLevel = authentication === 'hmac'
       ? 'untrusted_dev'
-      : stage === 'release' ? 'verified_release' : 'trusted_candidate';
+      : stage === 'release'
+        ? 'verified_release'
+        : stage === 'prerelease'
+          ? 'verified_prerelease'
+          : 'trusted_candidate';
     const admissionEligible = authentication !== 'hmac' && Boolean(
       releaseFingerprint
       && dataSnapshot
       && provider
       && model
-      && (stage !== 'release' || (candidateId && evalRunId && evaluationReleaseId)),
+      && (!['prerelease', 'release'].includes(stage) || (candidateId && evalRunId && evaluationReleaseId)),
     );
     return {
       receipt: {
@@ -286,7 +296,7 @@ export class BrainGateReceiptVerificationService {
   }
 
   async verifyReleaseEvidence(input: VerifiedBrainGateReceipt): Promise<void> {
-    if (input.receipt.stage !== 'release') return;
+    if (input.receipt.stage !== 'prerelease' && input.receipt.stage !== 'release') return;
     if (!this.releaseService) throw new BadRequestException('release_receipt_evidence_verifier_unavailable');
     const evaluationReleaseId = positiveInteger(
       input.receipt.evaluationReleaseId,

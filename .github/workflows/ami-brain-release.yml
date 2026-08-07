@@ -3,6 +3,14 @@ name: Ami Brain Release Acceptance
 on:
   workflow_dispatch:
     inputs:
+      release_phase:
+        description: prerelease creates the five-gate drill admission receipt; release requires rollback_drill and creates the six-gate final receipt
+        required: true
+        default: prerelease
+        type: choice
+        options:
+          - prerelease
+          - release
       expected_commit:
         description: Protected main commit to release (full 40-character SHA)
         required: true
@@ -12,11 +20,11 @@ on:
         required: true
         type: string
       evidence_commit:
-        description: Immutable commit containing the four reviewed manual evidence JSON files
+        description: Immutable commit containing reviewed manual evidence JSON files
         required: true
         type: string
       evidence_directory:
-        description: Directory inside evidence_commit containing permission_matrix.json, cross_client_e2e.json, provider_fallback.json and rollback_drill.json
+        description: Directory inside evidence_commit; prerelease needs three manual files, release additionally needs rollback_drill.json
         required: true
         default: outputs/ami-brain-release-evidence
         type: string
@@ -49,7 +57,7 @@ concurrency:
 
 jobs:
   release-acceptance:
-    name: RC-350 and protected OIDC Release Receipt
+    name: RC-350 and protected OIDC ${{ inputs.release_phase }} Receipt
     runs-on: ubuntu-latest
     timeout-minutes: 360
     environment: ami-brain-release
@@ -85,6 +93,7 @@ jobs:
       INPUT_EVALUATION_RELEASE_ID: ${{ inputs.evaluation_release_id }}
       INPUT_STORE_ID: ${{ inputs.store_id }}
       INPUT_RUN_KEY: ${{ inputs.run_key }}
+      INPUT_RELEASE_PHASE: ${{ inputs.release_phase }}
       RELEASE_REF_PROTECTED: ${{ github.ref_protected }}
       RELEASE_ENVIRONMENT_PROTECTED: ${{ vars.BRAIN_RELEASE_ENVIRONMENT_PROTECTED }}
     steps:
@@ -184,7 +193,11 @@ jobs:
             exit 1
           fi
           evidence_root="release-evidence/$INPUT_EVIDENCE_DIRECTORY"
-          for evidence_type in permission_matrix cross_client_e2e provider_fallback rollback_drill; do
+          manual_evidence_types="permission_matrix cross_client_e2e provider_fallback"
+          if [ "$INPUT_RELEASE_PHASE" = "release" ]; then
+            manual_evidence_types="$manual_evidence_types rollback_drill"
+          fi
+          for evidence_type in $manual_evidence_types; do
             if [ ! -f "$GITHUB_WORKSPACE/$evidence_root/$evidence_type.json" ]; then
               echo "Reviewed evidence is missing: $evidence_type.json" >&2
               exit 1
@@ -248,7 +261,7 @@ jobs:
             --out="$GITHUB_WORKSPACE/outputs/ami-brain-release-evidence/target_database.json" \
             --strict
 
-      - name: Re-verify and freeze all six release evidence receipts
+      - name: Re-verify and freeze phase-specific evidence receipts
         shell: bash
         run: |
           set -euo pipefail
@@ -264,7 +277,11 @@ jobs:
             --evidence-type=target_database \
             --status=passed \
             --artifact="$target_database"
-          for evidence_type in permission_matrix cross_client_e2e provider_fallback rollback_drill; do
+          manual_evidence_types="permission_matrix cross_client_e2e provider_fallback"
+          if [ "$INPUT_RELEASE_PHASE" = "release" ]; then
+            manual_evidence_types="$manual_evidence_types rollback_drill"
+          fi
+          for evidence_type in $manual_evidence_types; do
             artifact="$EVIDENCE_ROOT/$evidence_type.json"
             npm run brain:release:candidate -- receipt \
               --candidate-lock="$CANDIDATE_LOCK" \
@@ -281,10 +298,12 @@ jobs:
               --review-media="$artifact"
           done
           evidence_dir="$(dirname "$CANDIDATE_LOCK")/evidence"
-          npm run brain:release:candidate -- close \
-            --candidate-lock="$CANDIDATE_LOCK" \
-            --evidence-dir="$evidence_dir" \
-            --no-persist
+          if [ "$INPUT_RELEASE_PHASE" = "release" ]; then
+            npm run brain:release:candidate -- close \
+              --candidate-lock="$CANDIDATE_LOCK" \
+              --evidence-dir="$evidence_dir" \
+              --no-persist
+          fi
           echo "RELEASE_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
 
       - name: Create and upload the protected GitHub OIDC Release Receipt
@@ -296,7 +315,8 @@ jobs:
             --workflow="$GITHUB_WORKFLOW" \
             --event-name="$GITHUB_EVENT_NAME" \
             --branch="$GITHUB_REF_NAME" \
-            --receipt-output="outputs/ami-brain-release-receipts/$RELEASE_RUN_KEY.json" \
+            --phase="$INPUT_RELEASE_PHASE" \
+            --receipt-output="outputs/ami-brain-release-receipts/$RELEASE_RUN_KEY-$INPUT_RELEASE_PHASE.json" \
             --upload-receipt
 
       - name: Publish the release evidence summary
@@ -309,6 +329,7 @@ jobs:
             echo "- Commit: \`$GITHUB_SHA\`"
             echo "- Evaluation Release: \`$EVALUATION_RELEASE_ID\`"
             echo "- Run key: \`$RELEASE_RUN_KEY\`"
+            echo "- Receipt phase: \`$INPUT_RELEASE_PHASE\`"
             echo "- Candidate CI run: \`$INPUT_CANDIDATE_CI_RUN_ID\`"
             echo "- Manual evidence commit: \`$INPUT_EVIDENCE_COMMIT\`"
             echo "- Receipt authentication: GitHub OIDC only"

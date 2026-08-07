@@ -16,6 +16,7 @@ const RELEASE_GATE_KEYS = [
   'provider_fallback',
   'rollback_drill',
 ];
+const PRERELEASE_GATE_KEYS = RELEASE_GATE_KEYS.filter((gateKey) => gateKey !== 'rollback_drill');
 
 describe('BrainGateReceiptVerificationService', () => {
   const service = new BrainGateReceiptVerificationService();
@@ -75,11 +76,13 @@ describe('BrainGateReceiptVerificationService', () => {
     }));
   });
 
-  it('rejects HMAC candidate and release receipts even when their signatures are valid', () => {
+  it('rejects HMAC candidate, prerelease and release receipts even when their signatures are valid', () => {
     const now = new Date('2026-08-02T10:00:00.000Z');
     expect(() => service.verifyReceipt(candidateReceipt(now), 'CI/CD', now, 'hmac'))
       .toThrow('receipt_hmac_admission_forbidden');
     expect(() => service.verifyReceipt(releaseReceipt(now), 'release-service', now, 'hmac'))
+      .toThrow('receipt_hmac_admission_forbidden');
+    expect(() => service.verifyReceipt(releaseReceipt(now, 'prerelease'), 'release-service', now, 'hmac'))
       .toThrow('receipt_hmac_admission_forbidden');
   });
 
@@ -273,6 +276,15 @@ describe('BrainGateReceiptVerificationService', () => {
     expect(verified.admissionEligible).toBe(true);
   });
 
+  it('grants verified-prerelease trust only with the five-gate manifest', () => {
+    const now = new Date('2026-08-02T10:00:00.000Z');
+    const receipt = releaseReceipt(now, 'prerelease');
+    const verified = service.verifyReceipt(receipt, 'release-service', now);
+    expect(verified.trustLevel).toBe('verified_prerelease');
+    expect(verified.admissionEligible).toBe(true);
+    expect(receipt.results.map((result) => result.gateKey)).toEqual(PRERELEASE_GATE_KEYS);
+  });
+
   it('rejects duplicate gates or capabilities instead of treating set equality as exact coverage', () => {
     const now = new Date('2026-08-02T10:00:00.000Z');
     const receipt = releaseReceipt(now);
@@ -410,11 +422,11 @@ describe('BrainGateReceiptVerificationService', () => {
   });
 });
 
-function releaseReceipt(now: Date) {
+function releaseReceipt(now: Date, stage: 'prerelease' | 'release' = 'release') {
   const candidate = candidateReceipt(now);
   const releaseIdentity = identityFields({
     ...candidate,
-    stage: 'release',
+    stage,
     workflow: 'release-service',
     releaseFingerprint: 'release-fingerprint-1',
     dataSnapshot: 'snapshot-1',
@@ -427,14 +439,18 @@ function releaseReceipt(now: Date) {
   return withReleaseManifest({
     ...candidate,
     ...releaseIdentity,
-    stage: 'release',
+    stage,
     workflow: 'release-service',
     identityChecksum: sha256(releaseIdentity),
-  });
+  }, stage);
 }
 
-function withReleaseManifest<T extends Record<string, unknown>>(receipt: T) {
-  const results = RELEASE_GATE_KEYS.map((gateKey, index) => ({
+function withReleaseManifest<T extends Record<string, unknown>>(
+  receipt: T,
+  stage: 'prerelease' | 'release' = 'release',
+) {
+  const gateKeys = stage === 'prerelease' ? PRERELEASE_GATE_KEYS : RELEASE_GATE_KEYS;
+  const results = gateKeys.map((gateKey, index) => ({
     gateId: gateKey,
     gateKey,
     status: 'passed',
@@ -447,7 +463,7 @@ function withReleaseManifest<T extends Record<string, unknown>>(receipt: T) {
         ...BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
         ...BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
       ],
-      gates: RELEASE_GATE_KEYS.map((id) => ({ id })),
+      gates: gateKeys.map((id) => ({ id })),
     },
     results,
     resultChecksum: sha256(results),

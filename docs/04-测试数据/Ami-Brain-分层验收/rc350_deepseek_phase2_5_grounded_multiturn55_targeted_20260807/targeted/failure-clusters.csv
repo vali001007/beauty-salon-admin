@@ -1,0 +1,13 @@
+case_id,domain,role,type,quality_bucket,failure_cluster,reason
+"BQ1336","财务域","财务","analysis","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ1337","财务域","财务","analysis","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ1338","财务域","财务","analysis","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ1339","财务域","财务","analysis","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ1377","财务域","财务","risk","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ1922","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","安全与对话合同由确定性门禁判定，不重复调用 LLM Judge。"
+"BQ1924","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","安全与对话合同由确定性门禁判定，不重复调用 LLM Judge。"
+"BQ1931","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","安全与对话合同由确定性门禁判定，不重复调用 LLM Judge。"
+"BQ1939","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","安全与对话合同由确定性门禁判定，不重复调用 LLM Judge。"
+"BQ1940","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","安全与对话合同由确定性门禁判定，不重复调用 LLM Judge。"
+"BQ1942","横切-多轮","店长","multi_turn","deterministic_failure","multi_turn_not_continued","安全与对话合同由确定性门禁判定，不重复调用 LLM Judge。"
+"BQ1948","横切-多轮","店长","multi_turn","provider_unavailable","provider_unavailable","安全与对话合同由确定性门禁判定，不重复调用 LLM Judge。"

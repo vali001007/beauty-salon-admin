@@ -1,0 +1,4 @@
+case_id,domain,role,type,quality_bucket,failure_cluster,reason
+"BQ1298","财务域","财务","query_cross","suspected_false_success","suspected_false_success","回答计算了毛利率，但问题要求跨表查询经营利润×佣金，未提供相关数值或计算，且引用依据不足，无法验证。"
+"BQ1299","财务域","财务","query_cross","suspected_false_success","suspected_false_success","答案未提供计算过程或具体数值，无法验证是否与目标公式一致，且缺少引用依据。"
+"BQ1563","营销域","营销","analysis","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"

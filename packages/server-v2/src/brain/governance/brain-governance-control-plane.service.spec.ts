@@ -924,6 +924,81 @@ describe('BrainGovernanceControlPlaneService', () => {
     }));
   });
 
+  it('accepts verified prerelease evidence when processing prerelease capability tasks', async () => {
+    const task = {
+      id: 305,
+      idempotencyKey: 'task-305',
+      taskType: 'evaluate',
+      stage: 'prerelease',
+      resourceType: 'capability_policy',
+      resourceKey: 'customer_facts',
+      riskLevel: 'low',
+      status: 'pending',
+      payload: { capabilityKey: 'customer_facts', stage: 'prerelease', policyVersionId: 61 },
+      transitionLog: [],
+      attemptCount: 0,
+      maxAttempts: 3,
+      availableAt: new Date(0),
+      leaseExpiresAt: null,
+      candidateId: 17,
+      createdBy: 9,
+    };
+    const leaseExpiresAt = new Date('2099-08-02T10:05:00.000Z');
+    const validating = { ...task, status: 'validating', attemptCount: 1, leaseOwner: 'worker-1', leaseExpiresAt };
+    const evaluating = { ...validating, status: 'evaluating' };
+    const approved = { ...evaluating, status: 'approved', leaseOwner: null, leaseExpiresAt: null };
+    const receipt = {
+      id: 91,
+      receiptKey: 'prerelease-receipt',
+      stage: 'prerelease',
+      trustLevel: 'verified_prerelease',
+      resultChecksum: HASH,
+      expiresAt: freshEvidenceExpiry(),
+    };
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const findUnique = jest.fn()
+      .mockResolvedValueOnce(task)
+      .mockResolvedValueOnce(validating)
+      .mockResolvedValueOnce(validating)
+      .mockResolvedValueOnce(evaluating)
+      .mockResolvedValueOnce(evaluating)
+      .mockResolvedValueOnce(approved);
+    const service = new BrainGovernanceControlPlaneService({
+      brainGovernanceTask: {
+        findUnique,
+        updateMany,
+      },
+      brainGovernanceCandidate: {
+        findUnique: jest.fn().mockResolvedValue({ id: 17, status: 'governing' }),
+      },
+      brainResourceVersion: {
+        findFirst: jest.fn().mockResolvedValue(policyRow({
+          id: 61,
+          snapshot: { ...policyRow().snapshot as object, riskLevel: 'low', mode: 'readonly' },
+        })),
+      },
+      brainGateReceipt: { findFirst: jest.fn().mockResolvedValue(receipt) },
+    } as never);
+    const created = policyRow({ id: 62, version: 2 });
+    const createPolicyVersion = jest.spyOn(service as never, 'createPolicyVersion' as never).mockResolvedValue(created as never);
+
+    await expect(service.processTask(305, 'worker-1')).resolves.toBe(true);
+
+    expect(createPolicyVersion).toHaveBeenCalledWith(expect.objectContaining({
+      capabilityKey: 'customer_facts',
+      snapshot: expect.objectContaining({
+        whitelistStatus: 'approved',
+        evidence: [expect.objectContaining({ receiptId: 'prerelease-receipt', stage: 'prerelease' })],
+      }),
+    }));
+    expect(updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        status: 'approved',
+        result: expect.objectContaining({ receiptId: 91 }),
+      }),
+    }));
+  });
+
   it('cancels work for a superseded candidate before it can create stale policy versions', async () => {
     const task = {
       id: 304,

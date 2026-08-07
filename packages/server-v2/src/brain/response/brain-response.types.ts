@@ -1,4 +1,5 @@
 import type { BrainDomainAnswer } from '../domain/brain-domain-adapter.types.js';
+import type { BrainEvidencePacket } from './brain-evidence-packet.types.js';
 
 export type BrainResponseBlock =
   | { kind: 'text'; text: string; citationIds?: string[] }
@@ -27,7 +28,7 @@ export type BrainResponseBlock =
   | { kind: 'follow_up_questions'; questions: Array<{ id: string; label: string; value: string }> }
   | { kind: 'action_preview'; actions: unknown[] }
   | { kind: 'limitations'; items: string[] }
-  | { kind: 'evidence'; citations: BrainDomainAnswer['citations'] };
+  | { kind: 'evidence'; citations: BrainDomainAnswer['citations']; packets?: BrainEvidencePacket[] };
 
 export interface BrainResponseEnvelope {
   answer: string;

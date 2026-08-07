@@ -37,6 +37,9 @@ const QUERY_ONLY_REQUIRED_EVIDENCE_TYPES = [
   'provider_fallback',
   'rollback_drill',
 ] as const;
+const QUERY_ONLY_PRERELEASE_EVIDENCE_TYPES = QUERY_ONLY_REQUIRED_EVIDENCE_TYPES.filter(
+  (gateKey) => gateKey !== 'rollback_drill',
+);
 
 @Injectable()
 export class BrainGovernanceTransitionService {
@@ -109,6 +112,7 @@ export class BrainGovernanceTransitionService {
       evidenceReceipt: evidence.receipt ? {
         id: evidence.receipt.id,
         receiptKey: evidence.receipt.receiptKey,
+        phase: evidence.phase,
         evaluationReleaseId: evidence.receipt.evaluationReleaseId,
         evalRunId: evidence.receipt.evalRunId,
         contractVersion: evidence.readiness?.contractVersion ?? null,
@@ -138,54 +142,81 @@ export class BrainGovernanceTransitionService {
       throw new BadRequestException(evidence.blockers[0] ?? 'governance_transition_release_evidence_missing');
     }
 
-    const policyVersions = await this.controlPlane.createQueryOnlyPolicyVersions({
-      candidateKey: candidate.candidateKey,
-      actorId: input.actorId,
-      evidenceReceiptId: evidence.receipt.id,
-    });
-    const policy = await this.controlPlane.createPolicySnapshot({
-      releaseKey: brainGovernanceTargetPolicyReleaseKey(candidate.headCommit),
-      resourceVersionIds: policyVersions.resourceVersionIds,
-      actorId: input.actorId,
-      note: `candidate:${candidate.candidateKey};productProfile:${BRAIN_QUERY_ONLY_PRODUCT_PROFILE}`,
-      displayName: BRAIN_GOVERNANCE_TARGET_POLICY_NAME,
-      expectedDisplayCode: BRAIN_GOVERNANCE_TARGET_POLICY_CODE,
-    });
-    await this.prisma.brainGovernanceCandidate.update({
-      where: { id: candidate.id },
-      data: { policySnapshotId: policy.id, policyDecision: 'create_query_only_snapshot' },
-    });
-
+    let policy: Awaited<ReturnType<BrainGovernanceControlPlaneService['createPolicySnapshot']>>;
+    let sequence: Awaited<ReturnType<BrainRolloutSequenceService['create']>>;
+    let sourcePolicyReleaseId: number;
     const runtimeSource = await this.currentRuntime(true);
-    const allowed = new Set<string>(BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS);
-    const resourceVersionIds = runtimeSource.items
-      .filter((item) => item.resourceType === 'skill' && allowed.has(item.resourceKey))
-      .map((item) => item.resourceVersionId);
-    if (resourceVersionIds.length !== allowed.size) {
-      throw new BadRequestException(`query_only_runtime_capability_manifest_incomplete:${resourceVersionIds.length}/${allowed.size}`);
-    }
-    for (const item of runtimeSource.items.filter((row) => allowed.has(row.resourceKey))) {
-      const snapshot = record(item.snapshot);
-      if (snapshot.readOnly !== true || snapshot.sideEffect !== false) {
-        throw new BadRequestException(`brain_query_only_side_effect_capability:${item.resourceKey}`);
+    if (evidence.phase === 'release' && evidence.rollbackDrill) {
+      const drill = evidence.rollbackDrill;
+      if (
+        drill.newPolicyReleaseId !== candidate.policySnapshotId
+        || drill.runtimeSequenceId !== drill.runtimeSequence.id
+        || drill.oldRuntimeReleaseId !== runtimeSource.id
+      ) throw new ConflictException('rollback_drill_target_identity_drift');
+      const currentPolicy = await this.currentPolicy();
+      if (currentPolicy.id !== drill.oldPolicyReleaseId) {
+        throw new ConflictException('rollback_drill_policy_baseline_drift');
       }
-    }
+      const rearmed = await this.rearmAfterVerifiedRollbackDrill({
+        candidate,
+        drill,
+        receipt: evidence.receipt,
+        actorId: input.actorId,
+      });
+      policy = rearmed.policy;
+      sequence = rearmed.sequence;
+      sourcePolicyReleaseId = drill.oldPolicyReleaseId;
+    } else {
+      const policyVersions = await this.controlPlane.createQueryOnlyPolicyVersions({
+        candidateKey: candidate.candidateKey,
+        actorId: input.actorId,
+        evidenceReceiptId: evidence.receipt.id,
+      });
+      policy = await this.controlPlane.createPolicySnapshot({
+        releaseKey: brainGovernanceTargetPolicyReleaseKey(candidate.headCommit),
+        resourceVersionIds: policyVersions.resourceVersionIds,
+        actorId: input.actorId,
+        note: `candidate:${candidate.candidateKey};productProfile:${BRAIN_QUERY_ONLY_PRODUCT_PROFILE}`,
+        displayName: BRAIN_GOVERNANCE_TARGET_POLICY_NAME,
+        expectedDisplayCode: BRAIN_GOVERNANCE_TARGET_POLICY_CODE,
+      });
+      await this.prisma.brainGovernanceCandidate.update({
+        where: { id: candidate.id },
+        data: { policySnapshotId: policy.id, policyDecision: 'create_query_only_snapshot' },
+      });
 
-    const sequence = await this.rolloutSequence.create({
-      candidateKey: candidate.candidateKey,
-      releaseKey: brainGovernanceTargetRuntimeReleaseKey(candidate.headCommit),
-      resourceVersionIds,
-      governanceMode: 'enforced',
-      displayName: BRAIN_GOVERNANCE_TARGET_RUNTIME_NAME,
-      productProfile: BRAIN_QUERY_ONLY_PRODUCT_PROFILE,
-      expectedRuntimeVersionCode: BRAIN_GOVERNANCE_TARGET_RUNTIME_CODE,
-      evaluationEvidenceReleaseId: evidence.receipt.evaluationReleaseId!,
-      evaluationEvidenceEvalRunId: evidence.receipt.evalRunId!,
-      evaluationEvidenceReceiptId: evidence.receipt.id,
-      allowDraftPolicy: true,
-      transitionPreparation: true,
-      actorId: input.actorId,
-    });
+      const allowed = new Set<string>(BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS);
+      const resourceVersionIds = runtimeSource.items
+        .filter((item) => item.resourceType === 'skill' && allowed.has(item.resourceKey))
+        .map((item) => item.resourceVersionId);
+      if (resourceVersionIds.length !== allowed.size) {
+        throw new BadRequestException(`query_only_runtime_capability_manifest_incomplete:${resourceVersionIds.length}/${allowed.size}`);
+      }
+      for (const item of runtimeSource.items.filter((row) => allowed.has(row.resourceKey))) {
+        const snapshot = record(item.snapshot);
+        if (snapshot.readOnly !== true || snapshot.sideEffect !== false) {
+          throw new BadRequestException(`brain_query_only_side_effect_capability:${item.resourceKey}`);
+        }
+      }
+
+      sequence = await this.rolloutSequence.create({
+        candidateKey: candidate.candidateKey,
+        releaseKey: brainGovernanceTargetRuntimeReleaseKey(candidate.headCommit),
+        resourceVersionIds,
+        governanceMode: 'enforced',
+        displayName: BRAIN_GOVERNANCE_TARGET_RUNTIME_NAME,
+        productProfile: BRAIN_QUERY_ONLY_PRODUCT_PROFILE,
+        expectedRuntimeVersionCode: BRAIN_GOVERNANCE_TARGET_RUNTIME_CODE,
+        evaluationEvidenceReleaseId: evidence.receipt.evaluationReleaseId!,
+        evaluationEvidenceEvalRunId: evidence.receipt.evalRunId!,
+        evaluationEvidenceReceiptId: evidence.receipt.id,
+        admissionPhase: evidence.phase ?? undefined,
+        allowDraftPolicy: true,
+        transitionPreparation: true,
+        actorId: input.actorId,
+      });
+      sourcePolicyReleaseId = policyVersions.sourcePolicyReleaseId;
+    }
     if (policy.displayCode !== BRAIN_GOVERNANCE_TARGET_POLICY_CODE) {
       throw new ConflictException(`governance_transition_policy_identity_invalid:${policy.displayCode ?? 'unassigned'}`);
     }
@@ -196,7 +227,7 @@ export class BrainGovernanceTransitionService {
       candidateId: candidate.id,
       headCommit: candidate.headCommit,
       sourceFingerprint: candidate.sourceFingerprint,
-      oldPolicyReleaseId: policyVersions.sourcePolicyReleaseId,
+      oldPolicyReleaseId: sourcePolicyReleaseId,
       newPolicyReleaseId: policy.id,
       oldRuntimeReleaseId: runtimeSource.id,
       runtimeVersionCode: sequence.runtimeVersionCode,
@@ -213,7 +244,7 @@ export class BrainGovernanceTransitionService {
           transitionKey,
           status: 'draft',
           candidateId: candidate.id,
-          oldPolicyReleaseId: policyVersions.sourcePolicyReleaseId,
+          oldPolicyReleaseId: sourcePolicyReleaseId,
           newPolicyReleaseId: policy.id,
           oldRuntimeReleaseId: runtimeSource.id,
           runtimeSequenceId: sequence.id,
@@ -546,6 +577,8 @@ export class BrainGovernanceTransitionService {
     const transition = await this.get(id);
     if (transition.status === 'rolled_back') return transition;
     const rollbackReason = nonEmpty(reason, 'governance_transition_rollback_reason_required');
+    const rollbackDrillCompleted = transition.evidenceReceipt?.stage === 'prerelease'
+      && transition.runtimeSequence.currentStage === 'canary_5';
     await this.prisma.brainGovernanceTransition.update({ where: { id }, data: { status: 'rolling_back', currentStep: 'rolling_back' } });
     const currentStage = transition.runtimeSequence.releases.find((release) =>
       release.rolloutStage === transition.runtimeSequence.currentStage && release.status === 'active');
@@ -566,9 +599,23 @@ export class BrainGovernanceTransitionService {
         where: { id: transition.oldRuntimeReleaseId },
         data: { supersededAt: null, supersededByReleaseId: null },
       }),
+      this.prisma.brainGovernanceCandidate.update({
+        where: { id: transition.candidateId },
+        data: {
+          status: 'blocked',
+          policyDecision: rollbackDrillCompleted
+            ? 'prerelease_rollback_drill_completed'
+            : 'transition_rolled_back',
+        },
+      }),
       this.prisma.brainGovernanceTransition.update({
         where: { id },
-        data: { status: 'rolled_back', currentStep: 'rollback_completed', failureCode: rollbackReason, completedAt: new Date() },
+        data: {
+          status: 'rolled_back',
+          currentStep: rollbackDrillCompleted ? 'rollback_drill_completed' : 'rollback_completed',
+          failureCode: rollbackReason,
+          completedAt: new Date(),
+        },
       }),
     ]);
     return this.get(id);
@@ -584,6 +631,9 @@ export class BrainGovernanceTransitionService {
     if (transition.status !== 'observing') throw new BadRequestException('governance_transition_not_finalizable');
     if (transition.runtimeSequence.status !== 'completed' || transition.runtimeSequence.currentStage !== 'full') {
       throw new BadRequestException('runtime_rollout_not_full');
+    }
+    if (transition.evidenceReceipt?.stage !== 'release' || transition.evidenceReceipt.trustLevel !== 'verified_release') {
+      throw new BadRequestException('governance_transition_verified_release_required');
     }
     const full = transition.runtimeSequence.releases.find((release) => release.rolloutStage === 'full' && release.status === 'active');
     if (!full) throw new BadRequestException('runtime_full_release_not_active');
@@ -675,12 +725,14 @@ export class BrainGovernanceTransitionService {
       include: {
         receipts: {
           where: {
-            stage: 'release',
             status: 'passed',
             expiresAt: { gt: new Date() },
-            trustLevel: 'verified_release',
             verificationStatus: 'verified',
             issuerType: 'release_service',
+            OR: [
+              { stage: 'release', trustLevel: 'verified_release' },
+              { stage: 'prerelease', trustLevel: 'verified_prerelease' },
+            ],
             AND: [
               { result: { path: ['verification', 'admissionEligible'], equals: true } },
               { result: { path: ['verification', 'authentication'], equals: 'github_oidc' } },
@@ -695,30 +747,48 @@ export class BrainGovernanceTransitionService {
 
   private async resolveCandidateEvidence(candidate: CandidateWithEvidence): Promise<CandidateEvidenceResolution> {
     const blockers: string[] = [];
-    if (candidate.receipts.length > 1) blockers.push('candidate_verified_release_receipt_ambiguous');
-    const receipt = candidate.receipts.length === 1 ? candidate.receipts[0]! : null;
+    const releaseReceipts = candidate.receipts.filter((receipt) => receipt.stage === 'release');
+    const prereleaseReceipts = candidate.receipts.filter((receipt) => receipt.stage === 'prerelease');
+    if (releaseReceipts.length > 1) blockers.push('candidate_verified_release_receipt_ambiguous');
+    if (prereleaseReceipts.length > 1) blockers.push('candidate_verified_prerelease_receipt_ambiguous');
+    const receipt = releaseReceipts.length === 1
+      ? releaseReceipts[0]!
+      : releaseReceipts.length === 0 && prereleaseReceipts.length === 1
+        ? prereleaseReceipts[0]!
+        : null;
+    const phase = receipt?.stage === 'release' ? 'release' as const : receipt?.stage === 'prerelease' ? 'prerelease' as const : null;
+    const requiredEvidenceTypes = phase === 'prerelease'
+      ? QUERY_ONLY_PRERELEASE_EVIDENCE_TYPES
+      : QUERY_ONLY_REQUIRED_EVIDENCE_TYPES;
     const expected = new Set<string>([...BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS, ...BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS]);
     const actual = new Set(receipt?.capabilities.map((item) => item.capabilityKey) ?? []);
     let missingEvidence = [...expected].filter((key) => !actual.has(key));
     const extraEvidence = [...actual].filter((key) => !expected.has(key));
-    if (!receipt && candidate.receipts.length === 0) blockers.push('candidate_oidc_verified_release_receipt_missing');
-    if (candidate.status !== 'ready') blockers.push(`candidate_not_release_ready:${candidate.status}`);
+    if (!receipt && candidate.receipts.length === 0) blockers.push('candidate_oidc_release_or_prerelease_receipt_missing');
+    const rollbackDrill = phase === 'release'
+      && candidate.status === 'blocked'
+      && candidate.policyDecision === 'prerelease_rollback_drill_completed'
+      ? await this.findCompletedPrereleaseRollbackDrill(candidate.id)
+      : null;
+    if (candidate.status !== 'ready' && !rollbackDrill) blockers.push(`candidate_not_release_ready:${candidate.status}`);
     if (missingEvidence.length) blockers.push(`query_only_policy_valid_evidence_missing:${missingEvidence.sort().join(',')}`);
     if (extraEvidence.length) blockers.push(`query_only_policy_evidence_extra:${extraEvidence.sort().join(',')}`);
-    if (!receipt) return { receipt: null, readiness: null, missingEvidence, blockers: [...new Set(blockers)], materialization: null };
+    if (!receipt) return { receipt: null, readiness: null, missingEvidence, blockers: [...new Set(blockers)], materialization: null, phase: null, rollbackDrill: null };
 
     const result = record(receipt.result);
     const verification = record(result.verification);
     const actualGateKeys = receipt.gates
       .filter((gate) => gate.status === 'passed' && gate.expiresAt.getTime() > Date.now())
       .map((gate) => gate.gateKey);
-    const missingGateKeys = QUERY_ONLY_REQUIRED_EVIDENCE_TYPES.filter((key) => !actualGateKeys.includes(key));
-    const extraGateKeys = actualGateKeys.filter((key) => !QUERY_ONLY_REQUIRED_EVIDENCE_TYPES.includes(key as typeof QUERY_ONLY_REQUIRED_EVIDENCE_TYPES[number]));
+    const missingGateKeys = requiredEvidenceTypes.filter((key) => !actualGateKeys.includes(key));
+    const extraGateKeys = actualGateKeys.filter((key) => !requiredEvidenceTypes.includes(key as never));
+    const expectedTrustLevel = phase === 'release' ? 'verified_release' : 'verified_prerelease';
     if (
       receipt.issuerType !== 'release_service'
       || !receipt.issuer
       || verification.status !== 'verified'
-      || verification.trustLevel !== 'verified_release'
+      || receipt.trustLevel !== expectedTrustLevel
+      || verification.trustLevel !== expectedTrustLevel
       || verification.admissionEligible !== true
       || verification.authentication !== 'github_oidc'
       || verification.issuer !== receipt.issuer
@@ -754,7 +824,188 @@ export class BrainGovernanceTransitionService {
         blockers.push('candidate_receipt_evaluation_expired');
       }
     }
-    return { receipt, readiness, missingEvidence, blockers: [...new Set(blockers)], materialization: null };
+    return { receipt, readiness, missingEvidence, blockers: [...new Set(blockers)], materialization: null, phase, rollbackDrill };
+  }
+
+  private findCompletedPrereleaseRollbackDrill(candidateId: number) {
+    return this.prisma.brainGovernanceTransition.findFirst({
+      where: {
+        candidateId,
+        status: 'rolled_back',
+        currentStep: 'rollback_drill_completed',
+        evidenceReceipt: {
+          stage: 'prerelease',
+          trustLevel: 'verified_prerelease',
+          verificationStatus: 'verified',
+        },
+        runtimeSequence: { status: 'rolled_back' },
+      },
+      orderBy: { completedAt: 'desc' },
+      include: transitionInclude,
+    });
+  }
+
+  private async rearmAfterVerifiedRollbackDrill(input: {
+    candidate: CandidateWithEvidence;
+    drill: Prisma.BrainGovernanceTransitionGetPayload<{ include: typeof transitionInclude }>;
+    receipt: EvidenceReceipt;
+    actorId: number;
+  }) {
+    const rearmedAt = new Date();
+    const expectedPolicyItemCount = BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS.length
+      + BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS.length;
+    const result = await this.prisma.$transaction(async (tx) => {
+      const [candidate, policy, previousPolicy, sequence, receipt, unresolvedTaskCount] = await Promise.all([
+        tx.brainGovernanceCandidate.findUnique({ where: { id: input.candidate.id } }),
+        tx.brainRelease.findUnique({ where: { id: input.drill.newPolicyReleaseId }, include: { items: true } }),
+        tx.brainRelease.findUnique({ where: { id: input.drill.oldPolicyReleaseId } }),
+        tx.brainRolloutSequence.findUnique({
+          where: { id: input.drill.runtimeSequenceId },
+          include: {
+            candidate: true,
+            policySnapshot: true,
+            previousRuntimeRelease: true,
+            releases: { orderBy: { id: 'asc' } },
+          },
+        }),
+        tx.brainGateReceipt.findUnique({ where: { id: input.receipt.id }, include: { gates: true } }),
+        tx.brainGovernanceTask.count({
+          where: {
+            candidateId: input.candidate.id,
+            status: { in: ['pending', 'validating', 'classifying', 'evaluating', 'pending_approval', 'revision_required', 'failed'] },
+          },
+        }),
+      ]);
+      if (
+        !candidate
+        || candidate.status !== 'blocked'
+        || candidate.policyDecision !== 'prerelease_rollback_drill_completed'
+        || candidate.policySnapshotId !== input.drill.newPolicyReleaseId
+      ) throw new ConflictException('rollback_drill_candidate_state_drift');
+      if (unresolvedTaskCount > 0) throw new ConflictException('rollback_drill_candidate_blockers_unresolved');
+      if (
+        !policy
+        || policy.scope !== 'governance_policy'
+        || policy.status !== 'rolled_back'
+        || policy.previousReleaseId !== input.drill.oldPolicyReleaseId
+        || policy.items.length !== expectedPolicyItemCount
+        || policy.items.some((item) => item.resourceType !== 'capability_policy')
+      ) throw new ConflictException('rollback_drill_policy_state_drift');
+      if (!previousPolicy || previousPolicy.scope !== 'governance_policy' || previousPolicy.status !== 'active') {
+        throw new ConflictException('rollback_drill_policy_baseline_drift');
+      }
+      if (
+        !sequence
+        || sequence.candidateId !== input.candidate.id
+        || sequence.policySnapshotId !== policy.id
+        || sequence.status !== 'rolled_back'
+        || sequence.currentStage !== 'canary_5'
+        || sequence.previousRuntimeReleaseId !== input.drill.oldRuntimeReleaseId
+        || sequence.previousRuntimeRelease?.status !== 'active'
+        || !hasExactRolloutStages(sequence.releases)
+        || sequence.releases.some((release) => release.status === 'active')
+      ) throw new ConflictException('rollback_drill_runtime_state_drift');
+      if (!receipt) throw new ConflictException('rollback_drill_verified_release_receipt_missing');
+      assertVerifiedReleaseReceiptForRearm(receipt, input.candidate);
+
+      const policyClaim = await tx.brainRelease.updateMany({
+        where: {
+          id: policy.id,
+          scope: 'governance_policy',
+          status: 'rolled_back',
+          previousReleaseId: previousPolicy.id,
+        },
+        data: { status: 'draft', activatedAt: null, rolledBackAt: null, failureReason: null },
+      });
+      if (policyClaim.count !== 1) throw new ConflictException('rollback_drill_policy_rearm_conflict');
+      const policyVersionIds = policy.items.map((item) => item.resourceVersionId);
+      const policyVersions = await tx.brainResourceVersion.updateMany({
+        where: { id: { in: policyVersionIds }, resourceType: 'capability_policy', status: 'archived' },
+        data: { status: 'draft', activatedAt: null, archivedAt: null },
+      });
+      if (policyVersions.count !== policyVersionIds.length) {
+        throw new ConflictException('rollback_drill_policy_version_rearm_incomplete');
+      }
+      for (const release of sequence.releases) {
+        const rollout = record(release.rollout);
+        const claim = await tx.brainRelease.updateMany({
+          where: {
+            id: release.id,
+            rolloutSequenceId: sequence.id,
+            rolloutStage: release.rolloutStage,
+            status: release.status,
+          },
+          data: {
+            status: 'draft',
+            activatedAt: null,
+            rolledBackAt: null,
+            failureReason: null,
+            rollout: json({
+              ...rollout,
+              evaluationEvidenceReceiptId: receipt.id,
+              evaluationEvidenceReleaseId: receipt.evaluationReleaseId,
+              evaluationEvidenceEvalRunId: receipt.evalRunId,
+              admissionPhase: 'release',
+              rollbackDrillRearmedAt: rearmedAt.toISOString(),
+              previousDrillAttempt: {
+                status: release.status,
+                activatedAt: release.activatedAt?.toISOString() ?? null,
+                rolledBackAt: release.rolledBackAt?.toISOString() ?? null,
+                failureReason: release.failureReason,
+              },
+            }),
+          },
+        });
+        if (claim.count !== 1) throw new ConflictException(`rollback_drill_runtime_release_rearm_conflict:${release.rolloutStage}`);
+      }
+      const sequenceClaim = await tx.brainRolloutSequence.updateMany({
+        where: { id: sequence.id, status: 'rolled_back', currentStage: 'canary_5' },
+        data: {
+          status: 'draft',
+          currentStage: 'shadow',
+          pauseReason: null,
+          approvedBy: null,
+          startedAt: null,
+          completedAt: null,
+        },
+      });
+      if (sequenceClaim.count !== 1) throw new ConflictException('rollback_drill_runtime_sequence_rearm_conflict');
+      const candidateClaim = await tx.brainGovernanceCandidate.updateMany({
+        where: {
+          id: candidate.id,
+          status: 'blocked',
+          policySnapshotId: policy.id,
+          policyDecision: 'prerelease_rollback_drill_completed',
+        },
+        data: {
+          status: 'ready',
+          completedAt: null,
+          policyDecision: 'rearm_after_verified_rollback_drill',
+        },
+      });
+      if (candidateClaim.count !== 1) throw new ConflictException('rollback_drill_candidate_rearm_conflict');
+      return {
+        policy: await tx.brainRelease.findUniqueOrThrow({ where: { id: policy.id }, include: { items: true } }),
+        sequenceId: sequence.id,
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    await this.events?.record({
+      candidateId: input.candidate.id,
+      eventType: 'rollback_drill_rearmed',
+      entityType: 'governance_transition',
+      entityId: input.drill.id,
+      actorType: 'user',
+      actorId: input.actorId,
+      payload: {
+        policyReleaseId: result.policy.id,
+        runtimeSequenceId: result.sequenceId,
+        evidenceReceiptId: input.receipt.id,
+        evaluationReleaseId: input.receipt.evaluationReleaseId,
+        evalRunId: input.receipt.evalRunId,
+        phase: 'release',
+      },
+    });
+    return { policy: result.policy, sequence: await this.rolloutSequence.get(result.sequenceId) };
   }
 
   private async inspectTargetIdentity(candidate: { id: number; headCommit: string }) {
@@ -1119,16 +1370,21 @@ export class BrainGovernanceTransitionService {
     if (!receipt || transition.evidenceReceiptId !== receipt.id) return { blockers: ['transition_evidence_receipt_missing'] };
     const receiptResult = record(receipt.result);
     const verification = record(receiptResult.verification);
+    const phase = receipt.stage === 'release' ? 'release' : receipt.stage === 'prerelease' ? 'prerelease' : null;
+    const requiredEvidenceTypes = phase === 'prerelease'
+      ? QUERY_ONLY_PRERELEASE_EVIDENCE_TYPES
+      : QUERY_ONLY_REQUIRED_EVIDENCE_TYPES;
+    const expectedTrustLevel = phase === 'release' ? 'verified_release' : 'verified_prerelease';
     const isProtectedReleaseReceipt = Number(receiptResult.schemaVersion) === 3
-      && receiptResult.stage === 'release'
+      && receiptResult.stage === phase
       && receiptResult.workflow === receipt.issuer;
     const gateKeys = receipt.gates
       .filter((gate) => gate.status === 'passed' && gate.expiresAt.getTime() > Date.now())
       .map((gate) => gate.gateKey);
     if (
-      receipt.stage !== 'release'
+      !phase
       || receipt.status !== 'passed'
-      || receipt.trustLevel !== 'verified_release'
+      || receipt.trustLevel !== expectedTrustLevel
       || receipt.verificationStatus !== 'verified'
       || receipt.issuerType !== 'release_service'
       || !receipt.issuer
@@ -1138,11 +1394,11 @@ export class BrainGovernanceTransitionService {
       || receiptResult.headCommit !== transition.candidate.headCommit
       || receiptResult.sourceFingerprint !== transition.candidate.sourceFingerprint
       || verification.status !== 'verified'
-      || verification.trustLevel !== 'verified_release'
+      || verification.trustLevel !== expectedTrustLevel
       || verification.admissionEligible !== true
       || verification.authentication !== 'github_oidc'
       || verification.issuer !== receipt.issuer
-      || !sameStringSet(gateKeys, [...QUERY_ONLY_REQUIRED_EVIDENCE_TYPES])
+      || !sameStringSet(gateKeys, [...requiredEvidenceTypes])
     ) blockers.push('transition_evidence_receipt_invalid');
     const readiness = await this.releaseService.getReleaseReadiness(receipt.evaluationReleaseId ?? 0);
     const readinessExpiresAt = Date.parse(String(readiness.expiresAt ?? ''));
@@ -1357,6 +1613,7 @@ type CandidateWithEvidence = {
   diffChecksum: string;
   sourceFingerprint: string;
   status: string;
+  policyDecision: string | null;
   receipts: EvidenceReceipt[];
 };
 
@@ -1366,6 +1623,8 @@ type CandidateEvidenceResolution = {
   missingEvidence: string[];
   blockers: string[];
   materialization: ReleaseSnapshotMaterialization | null;
+  phase: 'prerelease' | 'release' | null;
+  rollbackDrill: Prisma.BrainGovernanceTransitionGetPayload<{ include: typeof transitionInclude }> | null;
 };
 
 type SourceReceipt = {
@@ -1423,6 +1682,8 @@ function frozenEvidenceSnapshot(
 ) {
   return {
     schemaVersion: 1,
+    phase: receipt.stage,
+    trustLevel: receipt.trustLevel,
     contractVersion: readiness.contractVersion,
     receiptId: receipt.id,
     receiptKey: receipt.receiptKey,
@@ -1443,6 +1704,69 @@ function frozenEvidenceSnapshot(
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function json(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function hasExactRolloutStages(releases: Array<{ rolloutStage?: string | null }>) {
+  const stages = releases.map((release) => release.rolloutStage).filter((stage): stage is string => Boolean(stage));
+  return stages.length === ROLLOUT_STAGES.length && sameStringSet(stages, [...ROLLOUT_STAGES]);
+}
+
+function assertVerifiedReleaseReceiptForRearm(
+  receipt: {
+    id: number;
+    candidateId: number | null;
+    stage: string;
+    status: string;
+    trustLevel: string;
+    verificationStatus: string;
+    issuerType: string;
+    issuer: string | null;
+    expiresAt: Date;
+    headCommit: string | null;
+    sourceFingerprint: string;
+    evaluationReleaseId: number | null;
+    evalRunId: number | null;
+    result: Prisma.JsonValue;
+    gates: Array<{ gateKey: string; status: string; expiresAt: Date }>;
+  } | null,
+  candidate: Pick<CandidateWithEvidence, 'id' | 'candidateKey' | 'headCommit' | 'sourceFingerprint'>,
+) {
+  if (!receipt) throw new ConflictException('rollback_drill_verified_release_receipt_missing');
+  const result = record(receipt.result);
+  const verification = record(result.verification);
+  const gateKeys = receipt.gates
+    .filter((gate) => gate.status === 'passed' && gate.expiresAt.getTime() > Date.now())
+    .map((gate) => gate.gateKey);
+  if (
+    receipt.candidateId !== candidate.id
+    || receipt.stage !== 'release'
+    || receipt.status !== 'passed'
+    || receipt.trustLevel !== 'verified_release'
+    || receipt.verificationStatus !== 'verified'
+    || receipt.issuerType !== 'release_service'
+    || !receipt.issuer
+    || receipt.expiresAt.getTime() <= Date.now()
+    || receipt.headCommit !== candidate.headCommit
+    || receipt.sourceFingerprint !== candidate.sourceFingerprint
+    || !receipt.evaluationReleaseId
+    || !receipt.evalRunId
+    || Number(result.schemaVersion) !== 3
+    || result.stage !== 'release'
+    || result.workflow !== receipt.issuer
+    || result.candidateKey !== candidate.candidateKey
+    || result.headCommit !== candidate.headCommit
+    || result.sourceFingerprint !== candidate.sourceFingerprint
+    || verification.status !== 'verified'
+    || verification.trustLevel !== 'verified_release'
+    || verification.admissionEligible !== true
+    || verification.authentication !== 'github_oidc'
+    || verification.issuer !== receipt.issuer
+    || !sameStringSet(gateKeys, [...QUERY_ONLY_REQUIRED_EVIDENCE_TYPES])
+  ) throw new ConflictException('rollback_drill_verified_release_receipt_invalid');
 }
 
 function positive(value: number | undefined, fallback: number) {
