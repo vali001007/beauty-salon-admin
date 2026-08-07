@@ -14,6 +14,10 @@ export const QUERY_ONLY_REQUIRED_EVIDENCE_TYPES = Object.freeze([
   'rollback_drill',
 ]);
 
+export const QUERY_ONLY_PRERELEASE_EVIDENCE_TYPES = Object.freeze(
+  QUERY_ONLY_REQUIRED_EVIDENCE_TYPES.filter((evidenceType) => evidenceType !== 'rollback_drill'),
+);
+
 // MO-690 is intentionally outside the automated release receipt flow for now.
 // Gold/Performance receipts remain parseable only for historical compatibility;
 // they are not mislabeled as the non-blocking MO-690 follow-up.

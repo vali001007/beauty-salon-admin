@@ -1,14 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { BrainSemanticIntent } from '../cognition/brain-semantic-intent.types.js';
 import type { BrainDomainAnswer } from '../domain/brain-domain-adapter.types.js';
 import type { BrainCompletionResult } from '../execution/brain-completion-verifier.service.js';
 import type { BrainObservation } from '../execution/brain-observation.service.js';
 import { BrainAnswerCompletionGuardService } from './brain-answer-completion-guard.service.js';
+import { BrainEvidencePacketService } from './brain-evidence-packet.service.js';
 import type { BrainResponseBlock, BrainResponseEnvelope } from './brain-response.types.js';
 
 @Injectable()
 export class BrainGroundedAnswerComposerService {
-  constructor(private readonly guard: BrainAnswerCompletionGuardService) {}
+  constructor(
+    private readonly guard: BrainAnswerCompletionGuardService,
+    @Optional() private readonly evidencePackets?: BrainEvidencePacketService,
+  ) {}
 
   compose(input: {
     observations: readonly BrainObservation[];
@@ -48,7 +52,8 @@ export class BrainGroundedAnswerComposerService {
       if (actions.length) appendActionPreview(blocks, actions);
     }
     if (limitations.length) blocks.push({ kind: 'limitations', items: [...new Set(limitations)] });
-    if (citations.length) blocks.push({ kind: 'evidence', citations });
+    const packets = this.evidencePackets?.buildFromObservations(completed) ?? [];
+    if (citations.length) blocks.push({ kind: 'evidence', citations, ...(packets.length ? { packets } : {}) });
 
     const answer =
       blocks.map(renderBlockText).filter(Boolean).join('\n\n') ||

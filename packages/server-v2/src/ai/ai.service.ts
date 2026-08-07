@@ -2851,6 +2851,7 @@ export class AiService {
           validate,
           fallbackConfig,
           budget,
+          1,
         );
         this.providerHealth.recordSuccess(fallbackKey, this.now());
         const primaryCircuitState = this.providerHealth.snapshot()
@@ -2895,7 +2896,16 @@ export class AiService {
       if (!fallbackConfig) throw primaryError;
     } else {
       try {
-        const result = await this.generateStructuredWithProvider(input, primaryMessages, validate, primaryConfig, budget);
+        const primaryMaxProviderAttempts =
+          input.providerHealthScope === 'evaluation_judge' || fallbackConfig || this.hasFallbackProvider() ? 1 : 3;
+        const result = await this.generateStructuredWithProvider(
+          input,
+          primaryMessages,
+          validate,
+          primaryConfig,
+          budget,
+          primaryMaxProviderAttempts,
+        );
         this.providerHealth.recordSuccess(primaryKey, this.now());
         return {
           ...result,
@@ -2945,6 +2955,7 @@ export class AiService {
         validate,
         fallbackConfig,
         budget,
+        1,
       );
       this.providerHealth.recordSuccess(fallbackKey, this.now());
       return {
@@ -2980,10 +2991,11 @@ export class AiService {
     validate: ValidateFunction<T>,
     providerConfig: StructuredProviderConfig,
     budget: StructuredRequestBudget,
+    maxProviderAttempts = 1,
   ): Promise<AiStructuredOutputResult<T>> {
     this.assertStructuredProviderAvailable(providerConfig);
     const providerSchema = input.promptSchema ?? input.schema;
-    const firstResult = await this.callStructuredProvider(
+    const firstResult = await this.callStructuredProviderWithRetry(
       input.scenario,
       initialMessages,
       providerSchema,
@@ -2991,6 +3003,7 @@ export class AiService {
       false,
       budget,
       input.temperature,
+      maxProviderAttempts,
     );
     const firstValidation = this.validateStructuredText(firstResult.text, validate);
     if (firstValidation.ok) {
@@ -3006,7 +3019,7 @@ export class AiService {
       throw this.buildStructuredValidationError(firstValidation.code, providerConfig, budget);
     }
 
-    const repairResult = await this.callStructuredProvider(
+    const repairResult = await this.callStructuredProviderWithRetry(
       input.scenario,
       this.buildStructuredRepairMessages(input.repairMessages, firstValidation.errors, providerSchema),
       providerSchema,
@@ -3014,6 +3027,7 @@ export class AiService {
       true,
       budget,
       input.temperature,
+      maxProviderAttempts,
     );
     const repairedValidation = this.validateStructuredText(repairResult.text, validate);
     if (!repairedValidation.ok) {
@@ -3026,6 +3040,60 @@ export class AiService {
       this.getStructuredBudgetUsage(budget)!,
       providerConfig,
     );
+  }
+
+  private async callStructuredProviderWithRetry(
+    scenario: string,
+    messages: AiMessage[],
+    schema: AiStructuredOutputSchema,
+    providerConfig: StructuredProviderConfig,
+    repair: boolean,
+    budget: StructuredRequestBudget,
+    temperature?: number,
+    maxProviderAttempts = 1,
+  ): Promise<AiGenerationResult> {
+    const maxAttempts = Math.min(Math.max(1, maxProviderAttempts), Math.max(1, budget.maxCalls - budget.callCount));
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await this.callStructuredProvider(
+          scenario,
+          messages,
+          schema,
+          providerConfig,
+          repair,
+          budget,
+          temperature,
+        );
+      } catch (error) {
+        lastError = error;
+        if (attempt >= maxAttempts || !this.isRetryableStructuredProviderCallError(error)) break;
+        const delayMs = this.structuredRetryDelayMs(attempt);
+        if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+    throw lastError;
+  }
+
+  private isRetryableStructuredProviderCallError(error: unknown) {
+    if (error instanceof AiProviderError) {
+      if (error.status === 401 || error.status === 403) return false;
+      return (
+        error.code === 'TIMEOUT' ||
+        error.code === 'NETWORK_ERROR' ||
+        error.status === 408 ||
+        error.status === 429 ||
+        (typeof error.status === 'number' && error.status >= 500)
+      );
+    }
+    if (error instanceof AiStructuredOutputError) {
+      return error.code === 'PROVIDER_UNAVAILABLE' && !/budget is exhausted|token budget/i.test(error.message);
+    }
+    return false;
+  }
+
+  private structuredRetryDelayMs(attempt: number) {
+    return attempt <= 1 ? 0 : Math.min(500, 100 * 2 ** (attempt - 2));
   }
 
   private assertStructuredProviderAvailable(providerConfig: StructuredProviderConfig) {

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import {
   closeCandidateEvidence,
+  QUERY_ONLY_PRERELEASE_EVIDENCE_TYPES,
   QUERY_ONLY_REQUIRED_EVIDENCE_TYPES,
   validateCandidateLock,
 } from './ami-brain-candidate-identity-core.mjs';
@@ -74,6 +75,7 @@ export function buildProtectedReleaseReceipt({
   branch,
   now = new Date(),
   expiresInHours = 168,
+  phase = 'release',
 }) {
   const lock = validateCandidateLock(candidateLockValue);
   if (lock.identity.productProfile !== 'query_only_v1') {
@@ -87,19 +89,23 @@ export function buildProtectedReleaseReceipt({
     throw new Error('release_receipt_candidate_branch_mismatch');
   }
 
+  const receiptStage = releaseReceiptStage(phase);
+  const requiredEvidenceTypes = receiptStage === 'prerelease'
+    ? QUERY_ONLY_PRERELEASE_EVIDENCE_TYPES
+    : QUERY_ONLY_REQUIRED_EVIDENCE_TYPES;
   const evidenceReceipts = evidenceReceiptValues.map((value) => value && typeof value === 'object' ? value : {});
   const evidenceTypes = evidenceReceipts.map((receipt) => String(receipt.evidenceType ?? '')).sort();
   if (
-    evidenceTypes.length !== QUERY_ONLY_REQUIRED_EVIDENCE_TYPES.length
-    || new Set(evidenceTypes).size !== QUERY_ONLY_REQUIRED_EVIDENCE_TYPES.length
-    || !sameSet(evidenceTypes, QUERY_ONLY_REQUIRED_EVIDENCE_TYPES)
+    evidenceTypes.length !== requiredEvidenceTypes.length
+    || new Set(evidenceTypes).size !== requiredEvidenceTypes.length
+    || !sameSet(evidenceTypes, requiredEvidenceTypes)
   ) {
     throw new Error('release_receipt_evidence_manifest_invalid');
   }
   const eligibility = closeCandidateEvidence({
     candidateLock: lock,
     evidenceReceipts,
-    requiredEvidenceTypes: QUERY_ONLY_REQUIRED_EVIDENCE_TYPES,
+    requiredEvidenceTypes,
   }, now);
   if (!eligibility.releaseEligible || eligibility.blockers.length) {
     throw new Error(`release_receipt_evidence_not_ready:${eligibility.blockers.join(',') || 'blocked'}`);
@@ -108,7 +114,7 @@ export function buildProtectedReleaseReceipt({
   const releaseContract = validateReleaseContract(releaseContractValue, lock);
   const evalRunId = positiveInteger(releaseContract.stages.releaseCore.runId, 'release_receipt_eval_run_id_invalid');
   const evidenceByType = new Map(evidenceReceipts.map((receipt) => [receipt.evidenceType, receipt]));
-  const results = QUERY_ONLY_REQUIRED_EVIDENCE_TYPES.map((gateKey) => {
+  const results = requiredEvidenceTypes.map((gateKey) => {
     const evidence = evidenceByType.get(gateKey);
     const artifactChecksums = Object.fromEntries(
       Object.entries(evidence.artifactChecksums ?? {}).sort(([left], [right]) => left.localeCompare(right)),
@@ -138,10 +144,10 @@ export function buildProtectedReleaseReceipt({
     };
   });
   const plan = {
-    stage: 'release',
+    stage: receiptStage,
     productProfile: 'query_only_v1',
     files: Array.isArray(candidateReceipt.plan?.files) ? [...candidateReceipt.plan.files] : [],
-    gates: QUERY_ONLY_REQUIRED_EVIDENCE_TYPES.map((id) => ({ id })),
+    gates: requiredEvidenceTypes.map((id) => ({ id })),
     capabilities: [...QUERY_ONLY_RELEASE_CAPABILITIES],
     capabilityManifest: {
       id: 'ami-brain-query-only-v1',
@@ -152,7 +158,7 @@ export function buildProtectedReleaseReceipt({
     evidenceChecksums: eligibility.evidenceChecksums,
   };
   const identity = {
-    stage: 'release',
+    stage: receiptStage,
     riskLevel: 'critical',
     changedFilesChecksum: candidateReceipt.changedFilesChecksum,
     diffChecksum: candidateReceipt.diffChecksum,
@@ -181,7 +187,7 @@ export function buildProtectedReleaseReceipt({
   const evidenceExpiry = new Date(eligibility.expiresAt);
   const expiresAt = new Date(Math.min(configuredExpiry.getTime(), evidenceExpiry.getTime()));
   if (!Number.isFinite(expiresAt.getTime()) || expiresAt <= now) throw new Error('release_receipt_expiry_invalid');
-  const receiptId = `release-receipt:${lock.candidateId}:${evalRunId}:${resultChecksum.slice(0, 16)}`;
+  const receiptId = `${receiptStage}-receipt:${lock.candidateId}:${evalRunId}:${resultChecksum.slice(0, 16)}`;
   return {
     schemaVersion: 3,
     receiptId,
@@ -195,6 +201,7 @@ export function buildProtectedReleaseReceipt({
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
     releaseEvidence: {
+      phase: receiptStage,
       contractVersion: releaseContract.contractVersion,
       decision: releaseContract.decision,
       candidateId: lock.candidateId,
@@ -325,6 +332,7 @@ async function main() {
     eventName: options.eventName ?? process.env.GITHUB_EVENT_NAME,
     branch: options.branch ?? process.env.GITHUB_REF_NAME,
     expiresInHours: options.expiresInHours,
+    phase: options.phase,
   });
   const outputPath = resolveRepoOutput(options.receiptOutput ?? `outputs/ami-brain-release-receipts/${receipt.receiptId.replaceAll(':', '-')}.json`);
   mkdirSync(dirname(outputPath), { recursive: true });
@@ -332,6 +340,7 @@ async function main() {
   if (options.uploadReceipt) await uploadProtectedReceipt(receipt);
   process.stdout.write(`${JSON.stringify({
     status: 'passed',
+    phase: receipt.stage,
     receiptId: receipt.receiptId,
     candidateId: receipt.candidateId,
     evalRunId: receipt.evalRunId,
@@ -361,7 +370,7 @@ async function uploadProtectedReceipt(receipt) {
 }
 
 function parseOptions(argv) {
-  const options = { uploadReceipt: false, expiresInHours: 168 };
+  const options = { uploadReceipt: false, expiresInHours: 168, phase: 'release' };
   for (const argument of argv) {
     if (argument === '--upload-receipt') options.uploadReceipt = true;
     else if (argument.startsWith('--candidate-lock=')) options.candidateLock = optionValue(argument);
@@ -372,14 +381,21 @@ function parseOptions(argv) {
     else if (argument.startsWith('--branch=')) options.branch = optionValue(argument);
     else if (argument.startsWith('--receipt-output=')) options.receiptOutput = optionValue(argument);
     else if (argument.startsWith('--expires-in-hours=')) options.expiresInHours = boundedHours(optionValue(argument));
+    else if (argument.startsWith('--phase=')) options.phase = releaseReceiptStage(optionValue(argument));
     else if (argument === '--help' || argument === '-h') options.help = true;
     else throw new Error(`release_receipt_unknown_argument:${argument}`);
   }
   if (options.help) {
-    process.stdout.write('Usage: npm run brain:release:receipt -- --candidate-lock=<path> --candidate-receipt=<path> --evidence-dir=<path> [--workflow=<name> --event-name=workflow_dispatch --branch=main --upload-receipt]\n');
+    process.stdout.write('Usage: npm run brain:release:receipt -- --candidate-lock=<path> --candidate-receipt=<path> --evidence-dir=<path> [--phase=prerelease|release --workflow=<name> --event-name=workflow_dispatch --branch=main --upload-receipt]\n');
     process.exit(0);
   }
   return options;
+}
+
+function releaseReceiptStage(value) {
+  const phase = String(value ?? '').trim() || 'release';
+  if (phase !== 'prerelease' && phase !== 'release') throw new Error(`release_receipt_phase_invalid:${phase}`);
+  return phase;
 }
 
 function resolveRepoFile(path, code) {

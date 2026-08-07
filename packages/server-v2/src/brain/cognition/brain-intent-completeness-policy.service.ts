@@ -47,6 +47,16 @@ export class BrainIntentCompletenessPolicyService {
       }
     }
 
+    const queryOnlyActionClarification = this.queryOnlyActionClarification(input.question, input.intent);
+    if (queryOnlyActionClarification) {
+      return this.withClarification(input.intent, queryOnlyActionClarification);
+    }
+
+    const genericEntityClarification = this.genericEntityClarification(input.question, input.intent);
+    if (genericEntityClarification) {
+      return this.withClarification(input.intent, genericEntityClarification);
+    }
+
     if (
       input.intent.intent === 'comparison' &&
       !input.intent.comparisonTarget &&
@@ -208,6 +218,82 @@ export class BrainIntentCompletenessPolicyService {
         ? Boolean(mention && !/^(?:客户|顾客|客人|会员|她|他|这个客户|这位客户)$/.test(mention))
         : Boolean(mention && !/^(?:项目|服务|护理|这个项目|该项目)$/.test(mention));
     });
+  }
+
+  private queryOnlyActionClarification(
+    question: string,
+    intent: BrainSemanticIntent,
+  ): { answerShape?: BrainSemanticIntent['answerShape']; missingSlots: string[]; reason: string; candidates: string[] } | undefined {
+    if (!['action', 'workflow'].includes(intent.intent) && intent.answerShape !== 'action_preview') return undefined;
+    if (/(?:充值|充钱|储值)/.test(question)) {
+      const missingSlots = [
+        ...(!this.hasSpecificEntity(intent, 'customer') ? ['customer'] : []),
+        ...(!/(?:\d+(?:\.\d+)?\s*(?:元|块|人民币)|金额)/.test(question) ? ['amount'] : []),
+      ];
+      if (!missingSlots.length) return undefined;
+      return {
+        answerShape: 'clarification',
+        missingSlots,
+        reason: '充值属于资金动作，query_only 只能先核对客户与金额，不能直接执行充值成功',
+        candidates: ['客户姓名/手机号', '充值金额', '充值卡项或账户'],
+      };
+    }
+    if (/(?:核销|销卡|扣次|消次)/.test(question)) {
+      const missingSlots = [
+        ...(!this.hasSpecificEntity(intent, 'customer') ? ['customer'] : []),
+        ...(!this.hasSpecificEntity(intent, 'project') ? ['project'] : []),
+        ...(!/(?:卡|次卡|权益|服务记录|订单)/.test(question) ? ['cardOrServiceRecord'] : []),
+      ];
+      if (!missingSlots.length) return undefined;
+      return {
+        answerShape: 'clarification',
+        missingSlots,
+        reason: '核销属于权益/履约动作，query_only 只能查询可核销条件，不能直接执行核销成功',
+        candidates: ['客户', '项目/服务记录', '卡项或权益'],
+      };
+    }
+    return undefined;
+  }
+
+  private genericEntityClarification(
+    question: string,
+    intent: BrainSemanticIntent,
+  ): { intent?: BrainSemanticIntent['intent']; answerShape?: BrainSemanticIntent['answerShape']; missingSlots: string[]; reason: string; candidates: string[] } | undefined {
+    if (/(?:那个|这个|该|那位|这位).{0,8}(?:客户|客人|会员|卡|次卡|储值卡|会员卡)/.test(question) && !this.hasSpecificEntity(intent, 'customer')) {
+      return {
+        intent: 'clarify',
+        answerShape: 'clarification',
+        missingSlots: ['customer'],
+        reason: '客户或卡项指代不唯一，需要先确认客户身份',
+        candidates: ['客户姓名/手机号', '从上一轮客户列表选择序号', '补充卡项名称'],
+      };
+    }
+    if (
+      /(?:那个|这个|该).{0,8}(?:项目|服务|护理|耗材)/.test(question) &&
+      !this.isAggregateProjectAdviceQuestion(question) &&
+      !this.hasSpecificEntity(intent, 'project')
+    ) {
+      return {
+        intent: 'clarify',
+        answerShape: 'clarification',
+        missingSlots: ['project'],
+        reason: '项目或耗材对象不唯一，需要先确认项目名称或上一轮序号',
+        candidates: ['项目名称', '上一轮列表序号', '商品/耗材名称'],
+      };
+    }
+    return undefined;
+  }
+
+  private isAggregateProjectAdviceQuestion(question: string): boolean {
+    const normalized = this.normalize(question);
+    return (
+      /(?:哪些|什么).{0,8}(?:项目|护理|服务)|(?:项目|护理|服务).{0,8}(?:哪些|什么)/.test(normalized) ||
+      /(?:主推|推荐|提升客单价|提高客单价|淡季|旺季)/.test(normalized) ||
+      /(?:控制|降低|压降|优化).{0,8}(?:耗材|物料|材料).{0,8}(?:成本|成本率)|(?:耗材|物料|材料).{0,8}(?:成本|成本率).{0,8}(?:控制|降低|压降|优化)/.test(
+        normalized,
+      ) ||
+      /(?:这个|本|上|下)?季度/.test(normalized)
+    );
   }
 
   private hasAmbiguousNamedPeriod(question: string): boolean {

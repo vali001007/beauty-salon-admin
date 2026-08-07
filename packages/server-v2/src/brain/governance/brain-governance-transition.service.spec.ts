@@ -18,7 +18,12 @@ const CORE_REQUIRED_EVIDENCE_TYPES = [
   'provider_fallback',
   'rollback_drill',
 ];
+const PRERELEASE_REQUIRED_EVIDENCE_TYPES = CORE_REQUIRED_EVIDENCE_TYPES.filter((gateKey) => gateKey !== 'rollback_drill');
 const EXTENDED_MANUAL_EVIDENCE_TYPES: string[] = [];
+const QUERY_ONLY_CAPABILITY_KEYS = [
+  ...BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS,
+  ...BRAIN_QUERY_ONLY_DISABLED_CAPABILITY_KEYS,
+];
 
 function stableStringify(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
@@ -270,6 +275,8 @@ function transition(overrides: Record<string, unknown> = {}) {
     },
     evidenceSnapshot: {
       schemaVersion: 1,
+      phase: 'release',
+      trustLevel: 'verified_release',
       contractVersion: 'ami-brain-release-acceptance/v2',
       receiptId: EVIDENCE_RECEIPT_ID,
       receiptKey: 'verified-release-receipt',
@@ -299,6 +306,52 @@ function transition(overrides: Record<string, unknown> = {}) {
     },
     ...overrides,
   };
+}
+
+function prereleaseEvidenceReceipt() {
+  const receipt = transition().evidenceReceipt;
+  return {
+    ...receipt,
+    receiptKey: 'verified-prerelease-receipt',
+    stage: 'prerelease',
+    trustLevel: 'verified_prerelease',
+    candidateId: 3,
+    headCommit: HEAD_COMMIT,
+    sourceFingerprint: HASH,
+    gates: CORE_REQUIRED_EVIDENCE_TYPES
+      .filter((gateKey) => gateKey !== 'rollback_drill')
+      .map((gateKey) => ({ gateKey, status: 'passed', expiresAt: new Date('2099-08-05T00:00:00.000Z') })),
+    result: {
+      ...receipt.result,
+      stage: 'prerelease',
+      verification: {
+        ...receipt.result.verification,
+        trustLevel: 'verified_prerelease',
+      },
+    },
+  };
+}
+
+function releaseEvidenceReceipt() {
+  return {
+    ...transition().evidenceReceipt,
+    candidateId: 3,
+    headCommit: HEAD_COMMIT,
+    sourceFingerprint: HASH,
+    capabilities: QUERY_ONLY_CAPABILITY_KEYS.map((capabilityKey) => ({ capabilityKey })),
+  };
+}
+
+function rolloutReleaseRows(status = 'rolled_back') {
+  return ['shadow', 'canary_5', 'canary_20', 'canary_50', 'full'].map((rolloutStage, index) => ({
+    id: 454 + index,
+    rolloutStage,
+    status,
+    activatedAt: new Date('2026-08-05T00:00:00.000Z'),
+    rolledBackAt: new Date('2026-08-05T00:30:00.000Z'),
+    failureReason: 'rollback drill',
+    rollout: { admissionPhase: 'prerelease', evaluationEvidenceReceiptId: EVIDENCE_RECEIPT_ID },
+  }));
 }
 
 function transactionMock() {
@@ -385,6 +438,45 @@ describe('BrainGovernanceTransitionService', () => {
       missingEvidence: [],
       blockers: [],
       materialization: null,
+    });
+  });
+
+  it('accepts one protected OIDC prerelease receipt with the exact five gates and no rollback drill gate', async () => {
+    const candidate = {
+      id: 3,
+      candidateKey: 'candidate-1',
+      headCommit: HEAD_COMMIT,
+      sourceFingerprint: HASH,
+      status: 'ready',
+      policyDecision: null,
+      receipts: [{
+        ...prereleaseEvidenceReceipt(),
+        candidateId: 3,
+        capabilities: QUERY_ONLY_CAPABILITY_KEYS.map((capabilityKey) => ({ capabilityKey })),
+      }],
+    };
+    const releaseService = { getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()) };
+    const service = new BrainGovernanceTransitionService({} as never, {} as never, releaseService as never, {} as never);
+
+    await expect((service as any).resolveCandidateEvidence(candidate)).resolves.toMatchObject({
+      receipt: { id: EVIDENCE_RECEIPT_ID, stage: 'prerelease', trustLevel: 'verified_prerelease' },
+      phase: 'prerelease',
+      missingEvidence: [],
+      blockers: [],
+      materialization: null,
+      rollbackDrill: null,
+    });
+    await expect((service as any).resolveCandidateEvidence({
+      ...candidate,
+      receipts: [{
+        ...candidate.receipts[0],
+        gates: [
+          ...candidate.receipts[0].gates,
+          { gateKey: 'rollback_drill', status: 'passed', expiresAt: new Date('2099-08-05T00:00:00.000Z') },
+        ],
+      }],
+    })).resolves.toMatchObject({
+      blockers: ['candidate_receipt_gate_extra:rollback_drill'],
     });
   });
 
@@ -503,6 +595,104 @@ describe('BrainGovernanceTransitionService', () => {
     });
     expect(candidateUpdate).not.toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: expect.anything() }),
+    }));
+  });
+
+  it('prepares a prerelease transition as five-gate evidence and binds RT-001 to prerelease admission', async () => {
+    const candidate = {
+      id: 3,
+      candidateKey: 'candidate-1',
+      headCommit: HEAD_COMMIT,
+      sourceFingerprint: HASH,
+      status: 'governing',
+    };
+    const receipt = {
+      ...prereleaseEvidenceReceipt(),
+      id: EVIDENCE_RECEIPT_ID,
+      evaluationReleaseId: EVALUATION_RELEASE_ID,
+      evalRunId: EVAL_RUN_ID,
+      resultChecksum: HASH,
+    };
+    const policy = {
+      id: 453,
+      releaseKey: `ami-brain-policy-query-only-v1-${HEAD_COMMIT.slice(0, 12)}`,
+      scope: 'governance_policy',
+      status: 'draft',
+      releaseFamily: 'policy',
+      displayCode: 'GP-003',
+      displayName: 'Query Only V1 强制治理策略',
+      items: [],
+    };
+    const sequence = {
+      id: 9,
+      runtimeVersionCode: 'RT-001',
+      displayName: 'Query Only V1',
+      productProfile: 'query_only_v1',
+      status: 'draft',
+      currentStage: 'shadow',
+      releases: rolloutReleases(),
+    };
+    const runtimeSource = {
+      id: 452,
+      items: BRAIN_QUERY_ONLY_ALLOWED_CAPABILITY_KEYS.map((resourceKey, index) => ({
+        resourceType: 'skill',
+        resourceKey,
+        resourceVersionId: 2000 + index,
+        snapshot: { readOnly: true, sideEffect: false },
+      })),
+    };
+    const transitionCreate = jest.fn().mockResolvedValue(transition({
+      candidate,
+      newPolicy: policy,
+      runtimeSequence: sequence,
+      evidenceReceipt: receipt,
+    }));
+    const prisma = {
+      brainGovernanceCandidate: { update: jest.fn().mockResolvedValue({}) },
+      brainGovernanceTransition: { create: transitionCreate, findFirst: jest.fn() },
+    };
+    const controlPlane = {
+      createQueryOnlyPolicyVersions: jest.fn().mockResolvedValue({
+        sourcePolicyReleaseId: 436,
+        resourceVersionIds: [11, 12],
+      }),
+      createPolicySnapshot: jest.fn().mockResolvedValue(policy),
+    };
+    const rollout = { create: jest.fn().mockResolvedValue(sequence) };
+    const service = new BrainGovernanceTransitionService(
+      prisma as never,
+      controlPlane as never,
+      {} as never,
+      rollout as never,
+    );
+    jest.spyOn(service, 'preview').mockResolvedValue({ existingTransition: null, canPrepare: true, blockers: [] } as never);
+    jest.spyOn(service as any, 'loadCandidateEvidence').mockResolvedValue(candidate);
+    jest.spyOn(service as any, 'resolveCandidateEvidence').mockResolvedValue({
+      receipt,
+      readiness: releaseReadiness(),
+      missingEvidence: [],
+      blockers: [],
+      materialization: null,
+      phase: 'prerelease',
+      rollbackDrill: null,
+    });
+    jest.spyOn(service as any, 'currentRuntime').mockResolvedValue(runtimeSource);
+
+    await expect(service.prepare({ candidateKey: candidate.candidateKey, actorId: 5 }))
+      .resolves.toMatchObject({ runtimeSequence: { runtimeVersionCode: 'RT-001' } });
+
+    expect(rollout.create).toHaveBeenCalledWith(expect.objectContaining({
+      expectedRuntimeVersionCode: 'RT-001',
+      admissionPhase: 'prerelease',
+      transitionPreparation: true,
+    }));
+    expect(transitionCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        evidenceSnapshot: expect.objectContaining({
+          phase: 'prerelease',
+          trustLevel: 'verified_prerelease',
+        }),
+      }),
     }));
   });
 
@@ -1032,6 +1222,9 @@ describe('BrainGovernanceTransitionService', () => {
         findUnique: jest.fn().mockResolvedValue({ id: 453, status: 'active' }),
         update: jest.fn().mockResolvedValue({}),
       },
+      brainGovernanceCandidate: {
+        update: jest.fn().mockResolvedValue({}),
+      },
       $transaction: transactionMock(),
     };
     const controlPlane = { rollbackPolicySnapshot: jest.fn().mockResolvedValue({ id: 436, status: 'active' }) };
@@ -1055,6 +1248,225 @@ describe('BrainGovernanceTransitionService', () => {
       where: { id: 452 },
       data: { supersededAt: null, supersededByReleaseId: null },
     });
+  });
+
+  it('records a rollback drill only when prerelease reaches C05 before rollback', async () => {
+    const row = transition({
+      status: 'observing',
+      evidenceReceipt: prereleaseEvidenceReceipt(),
+      runtimeSequence: {
+        id: 9,
+        runtimeVersionCode: 'RT-001',
+        productProfile: 'query_only_v1',
+        status: 'active',
+        currentStage: 'canary_5',
+        releases: [{ id: 455, rolloutStage: 'canary_5', status: 'active' }],
+      },
+    });
+    const prisma = {
+      brainGovernanceTransition: {
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue({ id: 453, status: 'active' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      brainGovernanceCandidate: { update: jest.fn().mockResolvedValue({}) },
+      $transaction: transactionMock(),
+    };
+    const controlPlane = { rollbackPolicySnapshot: jest.fn().mockResolvedValue({ id: 436, status: 'active' }) };
+    const rollout = { rollback: jest.fn().mockResolvedValue({}) };
+    const service = new BrainGovernanceTransitionService(
+      prisma as never,
+      controlPlane as never,
+      {} as never,
+      rollout as never,
+    );
+    jest.spyOn(service, 'get')
+      .mockResolvedValueOnce(row as never)
+      .mockResolvedValueOnce({ ...row, status: 'rolled_back', currentStep: 'rollback_drill_completed' } as never);
+
+    await expect(service.rollback(7, 'rollback drill', 5)).resolves.toMatchObject({ currentStep: 'rollback_drill_completed' });
+    expect(prisma.brainGovernanceCandidate.update).toHaveBeenCalledWith({
+      where: { id: 3 },
+      data: { status: 'blocked', policyDecision: 'prerelease_rollback_drill_completed' },
+    });
+    expect(prisma.brainGovernanceTransition.update).toHaveBeenCalledWith({
+      where: { id: 7 },
+      data: expect.objectContaining({ status: 'rolled_back', currentStep: 'rollback_drill_completed' }),
+    });
+  });
+
+  it('keeps a prerelease Shadow emergency rollback separate from the formal rollback drill', async () => {
+    const row = transition({
+      status: 'observing',
+      evidenceReceipt: prereleaseEvidenceReceipt(),
+      runtimeSequence: {
+        id: 9,
+        runtimeVersionCode: 'RT-001',
+        productProfile: 'query_only_v1',
+        status: 'active',
+        currentStage: 'shadow',
+        releases: [{ id: 454, rolloutStage: 'shadow', status: 'active' }],
+      },
+    });
+    const prisma = {
+      brainGovernanceTransition: {
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      brainRelease: {
+        findUnique: jest.fn().mockResolvedValue({ id: 453, status: 'active' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      brainGovernanceCandidate: { update: jest.fn().mockResolvedValue({}) },
+      $transaction: transactionMock(),
+    };
+    const service = new BrainGovernanceTransitionService(
+      prisma as never,
+      { rollbackPolicySnapshot: jest.fn().mockResolvedValue({ id: 436, status: 'active' }) } as never,
+      {} as never,
+      { rollback: jest.fn().mockResolvedValue({}) } as never,
+    );
+    jest.spyOn(service, 'get')
+      .mockResolvedValueOnce(row as never)
+      .mockResolvedValueOnce({ ...row, status: 'rolled_back', currentStep: 'rollback_completed' } as never);
+
+    await expect(service.rollback(7, 'emergency rollback', 5)).resolves.toMatchObject({ currentStep: 'rollback_completed' });
+    expect(prisma.brainGovernanceCandidate.update).toHaveBeenCalledWith({
+      where: { id: 3 },
+      data: { status: 'blocked', policyDecision: 'transition_rolled_back' },
+    });
+  });
+
+  it('does not let a blocked candidate bypass rollback drill rearm with a full receipt alone', async () => {
+    const candidate = {
+      id: 3,
+      candidateKey: 'candidate-1',
+      headCommit: HEAD_COMMIT,
+      sourceFingerprint: HASH,
+      status: 'blocked',
+      policyDecision: 'transition_rolled_back',
+      receipts: [releaseEvidenceReceipt()],
+    };
+    const service = new BrainGovernanceTransitionService(
+      { brainGovernanceTransition: { findFirst: jest.fn() } } as never,
+      {} as never,
+      { getReleaseReadiness: jest.fn().mockResolvedValue(releaseReadiness()) } as never,
+      {} as never,
+    );
+
+    await expect((service as any).resolveCandidateEvidence(candidate)).resolves.toMatchObject({
+      phase: 'release',
+      rollbackDrill: null,
+      blockers: ['candidate_not_release_ready:blocked'],
+    });
+  });
+
+  it('atomically rearms GP-003 and RT-001 after a verified C05 rollback drill', async () => {
+    const policyItems = QUERY_ONLY_CAPABILITY_KEYS.map((resourceKey, index) => ({
+      resourceType: 'capability_policy',
+      resourceKey,
+      resourceVersionId: 3000 + index,
+    }));
+    const candidate = {
+      id: 3,
+      candidateKey: 'candidate-1',
+      headCommit: HEAD_COMMIT,
+      sourceFingerprint: HASH,
+      status: 'blocked',
+      policyDecision: 'prerelease_rollback_drill_completed',
+      policySnapshotId: 453,
+    };
+    const releaseReceipt = releaseEvidenceReceipt();
+    const drill = transition({
+      id: 71,
+      status: 'rolled_back',
+      currentStep: 'rollback_drill_completed',
+      candidateId: 3,
+      newPolicyReleaseId: 453,
+      oldPolicyReleaseId: 436,
+      oldRuntimeReleaseId: 452,
+      runtimeSequenceId: 9,
+      runtimeSequence: {
+        id: 9,
+        candidateId: 3,
+        policySnapshotId: 453,
+        status: 'rolled_back',
+        currentStage: 'canary_5',
+        previousRuntimeReleaseId: 452,
+        previousRuntimeRelease: { id: 452, status: 'active' },
+        releases: rolloutReleaseRows(),
+      },
+    });
+    const tx = {
+      brainGovernanceCandidate: {
+        findUnique: jest.fn().mockResolvedValue(candidate),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      brainRelease: {
+        findUnique: jest.fn(({ where }: { where: { id: number } }) => {
+          if (where.id === 453) return Promise.resolve({ id: 453, scope: 'governance_policy', status: 'rolled_back', previousReleaseId: 436, items: policyItems });
+          if (where.id === 436) return Promise.resolve({ id: 436, scope: 'governance_policy', status: 'active' });
+          return Promise.resolve(null);
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 453, displayCode: 'GP-003', status: 'draft', items: policyItems }),
+      },
+      brainRolloutSequence: {
+        findUnique: jest.fn().mockResolvedValue(drill.runtimeSequence),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      brainGateReceipt: {
+        findUnique: jest.fn().mockResolvedValue(releaseReceipt),
+      },
+      brainGovernanceTask: { count: jest.fn().mockResolvedValue(0) },
+      brainResourceVersion: { updateMany: jest.fn().mockResolvedValue({ count: policyItems.length }) },
+    };
+    const prisma = {
+      $transaction: jest.fn((work) => typeof work === 'function' ? work(tx) : Promise.all(work)),
+    };
+    const events = { record: jest.fn().mockResolvedValue({}) };
+    const rollout = { get: jest.fn().mockResolvedValue({ id: 9, runtimeVersionCode: 'RT-001', status: 'draft' }) };
+    const service = new BrainGovernanceTransitionService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      rollout as never,
+      events as never,
+    );
+
+    await expect((service as any).rearmAfterVerifiedRollbackDrill({
+      candidate,
+      drill,
+      receipt: releaseReceipt,
+      actorId: 5,
+    })).resolves.toMatchObject({
+      policy: { id: 453, displayCode: 'GP-003', status: 'draft' },
+      sequence: { id: 9, runtimeVersionCode: 'RT-001', status: 'draft' },
+    });
+
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({
+      isolationLevel: 'Serializable',
+    }));
+    expect(tx.brainRelease.updateMany).toHaveBeenCalledTimes(6);
+    expect(tx.brainRelease.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 453, scope: 'governance_policy', status: 'rolled_back', previousReleaseId: 436 },
+      data: expect.objectContaining({ status: 'draft' }),
+    }));
+    expect(tx.brainRolloutSequence.updateMany).toHaveBeenCalledWith({
+      where: { id: 9, status: 'rolled_back', currentStage: 'canary_5' },
+      data: expect.objectContaining({ status: 'draft', currentStage: 'shadow' }),
+    });
+    expect(tx.brainGovernanceCandidate.updateMany).toHaveBeenCalledWith({
+      where: { id: 3, status: 'blocked', policySnapshotId: 453, policyDecision: 'prerelease_rollback_drill_completed' },
+      data: { status: 'ready', completedAt: null, policyDecision: 'rearm_after_verified_rollback_drill' },
+    });
+    expect(events.record).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'rollback_drill_rearmed',
+      payload: expect.objectContaining({ phase: 'release', evidenceReceiptId: EVIDENCE_RECEIPT_ID }),
+    }));
   });
 
   it('finalizes only after RT Full and archives the old runtime without deleting history', async () => {
