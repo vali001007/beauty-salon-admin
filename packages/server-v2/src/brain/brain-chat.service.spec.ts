@@ -3038,7 +3038,7 @@ describe('BrainChatService', () => {
     expect(response.failureCode).toBeNull();
   });
 
-  it('uses one model judgment and skips duplicate Supervisor planning for one fully governed action candidate', async () => {
+  it('fails closed for a procurement action when the underlying supplier facts are unpublished', async () => {
     const question = '给舒缓修护面膜下一个采购单，采156件'; // BQ1231
     const actionRef = {
       definitionType: 'action' as const,
@@ -3229,50 +3229,27 @@ describe('BrainChatService', () => {
         resourceVersionIds: [92],
         capabilityKeys: [card.key],
         capabilityCandidates: [card],
+        productProfile: {
+          productProfile: 'action_preview_acceptance',
+          actionsEnabled: true,
+          actionExecutionPolicy: 'preview_only',
+          allowedCapabilityManifest: 'purchase_order_preview',
+          productProfileFingerprint: 'c'.repeat(64),
+        },
       },
     } as unknown as BrainRequestContext;
     const response = await service.sendMessage(actionContext, 12, { message: question });
 
-    expect(response).toMatchObject({ status: 'completed', grounding: 'preview_action' });
-    expect(modelPipeline!.compiler.compile).toHaveBeenCalledTimes(1);
-    expect(modelPipeline!.retriever.retrieve).toHaveBeenCalledWith(
-      expect.objectContaining({ actionDefinition: expect.objectContaining({ actionKey: actionRef.definitionKey }) }),
-    );
-    expect(modelPipeline!.planner.plan).toHaveBeenCalledTimes(1);
-    expect(modelPipeline!.executor.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actionProvenance: expect.objectContaining({
-          schemaVersion: '1.0',
-          actionRef,
-          actionBindingFingerprint: 'd'.repeat(64),
-          actionSituationContextProfileFingerprint: actionDefinition.situationContext.fingerprint,
-          actionModalityPolicyFingerprint: actionDefinition.modalityPolicy.fingerprint,
-          actionInformationArtifactProfileFingerprint: actionDefinition.informationArtifact.fingerprint,
-          actionSideEffectInvariantProfileFingerprint: actionDefinition.sideEffectInvariant.fingerprint,
-          ontologySnapshotFingerprint: 'b'.repeat(64),
-          situationContext: expect.objectContaining({
-            profileFingerprint: actionDefinition.situationContext.fingerprint,
-            runId: 77,
-            conversationId: 12,
-            storeId: 2,
-            actorUserId: 9,
-            timezone: 'Asia/Shanghai',
-            qualifiedRole: 'store_manager',
-          }),
-          informationArtifacts: [],
-          capability: {
-            key: 'purchase_order_draft',
-            version: 13,
-            sourceFingerprint: 'a'.repeat(64),
-          },
-          gatewayActionKey: 'create_purchase_order',
-          release: {
-            releaseId: 417,
-            releaseFingerprint: '9'.repeat(64),
-          },
-        }),
-      }),
-    );
+    expect(response).toMatchObject({
+      status: 'completed',
+      grounding: 'none',
+      adapterMetadata: { decisionCode: 'deterministic_honest_boundary' },
+    });
+    expect(response.answer).toContain('尚未接入供应商报价');
+    expect(modelPipeline!.compiler.compile).not.toHaveBeenCalled();
+    expect(modelPipeline!.retriever.retrieve).not.toHaveBeenCalled();
+    expect(modelPipeline!.planner.plan).not.toHaveBeenCalled();
+    expect(modelPipeline!.executor.execute).not.toHaveBeenCalled();
     expect(orchestrator.createModelExecutionPlan).not.toHaveBeenCalled();
   });
 

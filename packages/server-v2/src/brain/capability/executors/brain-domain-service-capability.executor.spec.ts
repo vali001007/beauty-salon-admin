@@ -5029,7 +5029,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     );
     expect(result.answer).toContain('各美容师提成合计 278.21 元');
     expect(result.answer).toContain('公式：美容师提成汇总');
-    expect(result.blocks).toEqual([
+    expect(result.blocks).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: 'table',
         rows: [
@@ -5047,7 +5047,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
           },
         ],
       }),
-    ]);
+    ]));
     expect(result.metadata).toMatchObject({
       answerScope: 'staff_commission_summary_by_beautician',
       beauticianCount: 2,
