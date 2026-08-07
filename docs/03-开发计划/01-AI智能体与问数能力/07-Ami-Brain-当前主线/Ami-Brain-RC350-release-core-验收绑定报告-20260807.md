@@ -10,8 +10,9 @@
 
 | 维度 | 当前事实 | 结果 |
 | --- | --- | --- |
-| Candidate 代码 | `fba30629f235e7331039f9ade62989ad8f7f4b7f`，分支 `codex/ami-brain-release-switch-exec-20260806` | 已冻结候选提交 |
-| Candidate 工作树 | 独立干净工作树 `ami-brain-release-core-clean-20260807`；评测原始文件未混入候选 | 通过 |
+| 代码验证基线 | `fba30629f235e7331039f9ade62989ad8f7f4b7f`（BQ1634 题集登记修复） | 自动化已验证 |
+| 正式 Candidate | 尚未创建；必须以 Zeabur 健康接口实际回传的最终部署提交重新锁定 | 阻断 |
+| Candidate 工作树 | 已在独立干净工作树 `ami-brain-release-core-clean-20260807` 验证；评测原始文件未混入候选 | 可复用 |
 | 评测 Release | #455 / `EV-002` / `Query Only V1 RC-350 ecda1abb`，状态 `draft` | 可作为评测 Release，尚未激活 |
 | 模型配置 | 本地评测配置：`deepseek` / `deepseek-v4-flash`，fallback 同为 DeepSeek | 已读取；尚未取得同候选云端运行回执 |
 | 目标数据库 | Supabase Session Pooler，`postgres/public`（脱敏身份） | 只读审计 ready，尚未绑定 Candidate |
@@ -32,7 +33,7 @@
 ## 发布门禁状态
 
 ```text
-candidate fba3062 ── clean worktree ── PASS
+code baseline fba3062 ── clean worktree ── PASS
 Release #455 / DeepSeek config ─────── PASS (local configuration)
 target Supabase migration audit ────── PASS (read-only, pre-bind)
 Zeabur health + deployed commit ────── BLOCKED (502/timeout)
@@ -43,13 +44,13 @@ release-core 350 acceptance ────────── NOT STARTED
 
 ## 继续执行条件与命令
 
-先让 Zeabur 部署恢复，且 `/api/health/ready` 返回 `ready` 并明确包含提交 `fba30629f235e7331039f9ade62989ad8f7f4b7f`、DeepSeek 模型身份和与上述 Supabase 相同的脱敏数据库目标。随后从干净候选工作树依次执行：
+先让 Zeabur 部署恢复，且 `/api/health/ready` 返回 `ready` 并明确包含**最终部署的完整提交号**、DeepSeek 模型身份和与上述 Supabase 相同的脱敏数据库目标。提交号以该健康回执为准，不能预先把本地提交或文档提交当成已部署提交。随后从与该提交完全一致的干净候选工作树依次执行：
 
 ```bash
 npm --prefix packages/server-v2 run brain:release:candidate -- lock \
   --product-profile=query_only_v1 \
   --evaluation-release-id=455 \
-  --runtime-commit=fba30629f235e7331039f9ade62989ad8f7f4b7f \
+  --runtime-commit=<health-ready-deployment-full-sha> \
   --production-health-url=https://ami-service.zeabur.app/api/health/ready \
   --store-id=6 \
   --run-key=rc350_deepseek_fba3062_releasecore_20260807
@@ -57,7 +58,7 @@ npm --prefix packages/server-v2 run brain:release:candidate -- lock \
 npm --prefix packages/server-v2 run brain:release:acceptance -- \
   --release-id=455 \
   --evaluation-release-id=455 \
-  --runtime-commit=fba30629f235e7331039f9ade62989ad8f7f4b7f \
+  --runtime-commit=<health-ready-deployment-full-sha> \
   --production-health-url=https://ami-service.zeabur.app/api/health/ready \
   --store-id=6 \
   --run-key=rc350_deepseek_fba3062_releasecore_20260807
