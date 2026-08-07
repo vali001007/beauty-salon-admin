@@ -94,6 +94,7 @@ const state = vi.hoisted(() => {
       recentVisits: [],
     })),
     getTerminalBusinessAnswer: vi.fn(async () => ({ title: 'Ami 智能问答', text: '业务回答', source: 'Ami AI' })),
+    authRepair: vi.fn(async <T>(operation: () => Promise<T>) => operation()),
     businessAgentLoader: vi.fn(async () => ({
       runId: 1001,
       runNo: 'AG202606160001',
@@ -185,6 +186,7 @@ vi.mock('../services/auraCoreService', () => ({
   getOperationResult: vi.fn(),
   getTodayPrintDocuments: state.printDocumentsLoader,
   prefetchAuraBootstrap: vi.fn(async () => undefined),
+  runWithAuraAuthRepair: state.authRepair,
   getReceptionDashboard: state.receptionDashboardLoader,
   getRechargeFlow: state.rechargeFlowLoader,
   getRegistrationFlow: vi.fn(),
@@ -784,6 +786,7 @@ describe('runMicroApp cache and prefetch behavior', () => {
     expect(result.messages[0]?.type).toBe('cardVerification');
     expect(result.messages[0]?.payload).toMatchObject({ kind: 'cardVerification' });
     expect(state.cardVerificationFlowLoader).toHaveBeenCalledTimes(1);
+    expect(state.authRepair).toHaveBeenCalled();
     expect(state.businessAgentLoader).not.toHaveBeenCalled();
   });
 
@@ -807,6 +810,7 @@ describe('runMicroApp cache and prefetch behavior', () => {
     expect(result.messages[0]?.type).toBe('cashier');
     expect(result.messages[0]?.payload).toMatchObject({ kind: 'cashier' });
     expect(state.cashierFlowLoader).toHaveBeenCalledTimes(1);
+    expect(state.authRepair).toHaveBeenCalled();
     expect(state.businessAgentLoader).not.toHaveBeenCalled();
   });
 

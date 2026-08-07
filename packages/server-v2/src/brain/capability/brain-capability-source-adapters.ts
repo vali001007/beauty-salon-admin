@@ -246,9 +246,30 @@ function scanClass(
     .filter(ts.isMethodDeclaration)
     .some((method) => Boolean(decoratorObject(method, 'BrainCapability')));
   if (/Service$/.test(className) || Boolean(decoratorCall(node, 'Injectable')) || hasCapabilityMethod) {
-    for (const method of node.members.filter(ts.isMethodDeclaration)) {
+    const methods = node.members.filter(ts.isMethodDeclaration);
+    const methodPrismaOperations = new Map<string, string[]>();
+    const methodInternalCalls = new Map<string, string[]>();
+    for (const method of methods) {
       if (!method.name) continue;
-      const prismaOperations = collectPrismaOperations(method, sourceFile);
+      const methodName = method.name.getText(sourceFile);
+      methodPrismaOperations.set(methodName, collectPrismaOperations(method, sourceFile));
+      methodInternalCalls.set(methodName, collectInternalMethodCalls(method, sourceFile));
+    }
+
+    const resolvePrismaOperations = (methodName: string, visited = new Set<string>()): string[] => {
+      if (visited.has(methodName)) return [];
+      visited.add(methodName);
+      const direct = methodPrismaOperations.get(methodName) ?? [];
+      const transitive = (methodInternalCalls.get(methodName) ?? []).flatMap((calledMethod) =>
+        resolvePrismaOperations(calledMethod, visited).map((operation) => `${calledMethod}:${operation}`),
+      );
+      return [...new Set([...direct, ...transitive])].sort();
+    };
+
+    for (const method of methods) {
+      if (!method.name) continue;
+      const methodName = method.name.getText(sourceFile);
+      const prismaOperations = resolvePrismaOperations(methodName);
       const inputTypes = method.parameters.map((parameter) =>
         normalizeTypeScriptText(parameter.type?.getText(sourceFile) ?? 'unknown'),
       );
@@ -275,6 +296,7 @@ function scanClass(
           inputTypes,
           returnType,
           prismaOperations,
+          internalMethodCalls: methodInternalCalls.get(methodName) ?? [],
           methodSemantics,
           serviceBindings,
           injectionBindings,
@@ -737,6 +759,22 @@ function collectPrismaOperations(node: ts.Node, sourceFile: ts.SourceFile): stri
   };
   visit(node);
   return [...operations].sort();
+}
+
+function collectInternalMethodCalls(node: ts.Node, sourceFile: ts.SourceFile): string[] {
+  const calls = new Set<string>();
+  const visit = (child: ts.Node) => {
+    if (
+      ts.isCallExpression(child) &&
+      ts.isPropertyAccessExpression(child.expression) &&
+      child.expression.expression.kind === ts.SyntaxKind.ThisKeyword
+    ) {
+      calls.add(child.expression.name.text);
+    }
+    ts.forEachChild(child, visit);
+  };
+  visit(node);
+  return [...calls].sort();
 }
 
 function collectMethodSemanticEvidence(node: ts.MethodDeclaration, sourceFile: ts.SourceFile) {

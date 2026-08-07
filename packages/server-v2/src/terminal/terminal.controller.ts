@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Headers, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { Permissions } from '../common/decorators/permissions.decorator.js';
 import { PermissionsGuard } from '../common/guards/permissions.guard.js';
@@ -344,12 +344,36 @@ export class TerminalCardController {
 
   @Post('consume')
   @ApiOperation({ summary: '确认核销' })
+  @ApiHeader({ name: 'Idempotency-Key', required: false, description: '核销幂等键；请求头或请求体至少提供一个' })
   consume(
     @CurrentDevice('id') deviceId: number,
     @CurrentDevice('userId') userId: number | undefined,
+    @Headers('idempotency-key') headerIdempotencyKey: string | undefined,
     @Body() dto: ConsumeCardDto,
   ) {
-    return this.terminalService.consumeCard({ ...dto, operatorId: dto.operatorId ?? userId }, deviceId);
+    const headerKey = String(headerIdempotencyKey ?? '').trim();
+    const bodyKey = String(dto.idempotencyKey ?? '').trim();
+    if (headerKey && bodyKey && headerKey !== bodyKey) {
+      throw new ConflictException({
+        message: '请求头与请求体的核销幂等键不一致',
+        code: 'TERMINAL_IDEMPOTENCY_KEY_MISMATCH',
+        category: 'conflict',
+        retryable: false,
+      });
+    }
+    const idempotencyKey = headerKey || bodyKey;
+    if (!idempotencyKey) {
+      throw new BadRequestException({
+        message: '核销请求缺少幂等键',
+        code: 'TERMINAL_IDEMPOTENCY_KEY_REQUIRED',
+        category: 'business_blocker',
+        retryable: false,
+      });
+    }
+    return this.terminalService.consumeCard(
+      { ...dto, idempotencyKey, operatorId: dto.operatorId ?? userId },
+      deviceId,
+    );
   }
 }
 

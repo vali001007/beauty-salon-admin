@@ -1,6 +1,7 @@
 import type { AuthUser } from './auth';
 import type { Beautician } from './beautician';
 import type { DataScopes } from './permission';
+import type { Project } from './project';
 import type { Store } from './store';
 
 export type AuraRole = 'manager' | 'reception' | 'beautician';
@@ -67,4 +68,5 @@ export interface AuraBootstrap {
   dataScopes: Partial<DataScopes>;
   roleDefinition: AuraRoleDefinition;
   currentBeautician?: Beautician | null;
+  projects?: Project[];
 }

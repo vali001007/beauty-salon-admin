@@ -6,6 +6,24 @@ import { deductStockItems } from '../common/inventory-stock-deduction.js';
 import { normalizeCardMasterName } from './card-master-deduplication.js';
 import { buildCardUsageIdempotencyKey } from './card-usage-idempotency.js';
 
+export interface VerifyCardUsageInput {
+  cardOrderId?: string | number;
+  customerCardId?: string | number;
+  customerId?: number;
+  cardName?: string;
+  projectId?: string | number;
+  projectName?: string;
+  times?: number;
+  consumedTimes?: number;
+  operatorId?: number;
+  beauticianId?: number;
+  deviceId?: number;
+  reservationId?: number;
+  serviceTaskId?: number;
+  remark?: string;
+  idempotencyKey?: string;
+}
+
 @Injectable()
 export class CardsService {
   constructor(
@@ -343,23 +361,11 @@ export class CardsService {
     });
   }
 
-  async verifyCardUsage(data: {
-    cardOrderId?: string | number;
-    customerCardId?: string | number;
-    customerId?: number;
-    cardName?: string;
-    projectId?: string | number;
-    projectName?: string;
-    times?: number;
-    consumedTimes?: number;
-    operatorId?: number;
-    beauticianId?: number;
-    deviceId?: number;
-    reservationId?: number;
-    serviceTaskId?: number;
-    remark?: string;
-    idempotencyKey?: string;
-  }) {
+  async verifyCardUsage(data: VerifyCardUsageInput) {
+    return (await this.verifyCardUsageWithOutcome(data)).record;
+  }
+
+  async verifyCardUsageWithOutcome(data: VerifyCardUsageInput) {
     const customerCardId = Number(data.customerCardId ?? data.cardOrderId ?? 0);
     const times = Number(data.times ?? data.consumedTimes ?? 1);
     const requestedProjectId = this.toOptionalPositiveNumber(data.projectId);
@@ -400,7 +406,7 @@ export class CardsService {
             times,
             beauticianId: data.beauticianId,
           });
-          return existing;
+          return { record: existing, replayed: true as const };
         }
       }
       if (customerCard.status !== 'active') throw new BadRequestException('次卡未启用');
@@ -548,7 +554,7 @@ export class CardsService {
         }
       }
 
-      return record;
+      return { record, replayed: false as const };
     }, { timeout: 20000 });
   }
 }

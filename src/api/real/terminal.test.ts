@@ -19,6 +19,32 @@ describe('terminal real API payload normalization', () => {
     apiClientMock.patch.mockResolvedValue({});
   });
 
+  it('keeps the idempotency key in the header so a new client remains compatible with the previous backend DTO', async () => {
+    const { realVerifyTerminalCardUsage } = await import('./terminal');
+
+    await realVerifyTerminalCardUsage({
+      idempotencyKey: 'card-usage-request-1',
+      customerCardId: 66,
+      projectId: 101,
+      times: 1,
+      beauticianId: 9,
+    });
+
+    expect(apiClientMock.post).toHaveBeenCalledWith(
+      '/terminal/cards/consume',
+      {
+        customerCardId: 66,
+        projectId: 101,
+        times: 1,
+        beauticianId: 9,
+      },
+      {
+        headers: { 'Idempotency-Key': 'card-usage-request-1' },
+        retryPolicy: 'idempotent',
+      },
+    );
+  });
+
   it('strips display-only fields from service record consumption items', async () => {
     const { realCreateTerminalServiceRecord } = await import('./terminal');
 

@@ -9,6 +9,7 @@ import type {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { cn } from "./ui/utils";
 import { CustomerAsyncSelect } from "./CustomerAsyncSelect";
+import { formatUserFacingRequestError, isRequestOutcomeUncertain } from "../services/userFacingError";
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
@@ -79,6 +80,8 @@ export function CardVerificationFlowCard({
   const [pendingCustomerId, setPendingCustomerId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [outcomeUncertain, setOutcomeUncertain] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState("");
   const selectedCards = safeArray(selectedCustomer?.cards);
 
   const customers = useMemo(() => safeArray(data.customers), [data.customers]);
@@ -94,6 +97,8 @@ export function CardVerificationFlowCard({
       setSelectedCustomer(detail);
       setSelectedProject(null);
       setSelectedBeauticianId("");
+      setIdempotencyKey("");
+      setOutcomeUncertain(false);
       setStep(2);
     } catch (err) {
       setError(err instanceof Error ? err.message : "客户卡项加载失败");
@@ -117,6 +122,8 @@ export function CardVerificationFlowCard({
       expiryDate: card.expiryDate,
     });
     setSelectedBeauticianId("");
+    setIdempotencyKey("");
+    setOutcomeUncertain(false);
     setStep(3);
   };
 
@@ -129,18 +136,33 @@ export function CardVerificationFlowCard({
     }
     setLoading(true);
     setError(null);
+    const requestKey =
+      idempotencyKey ||
+      globalThis.crypto?.randomUUID?.() ||
+      `card-usage-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    if (!idempotencyKey) setIdempotencyKey(requestKey);
     try {
       await onConfirm({
         customerId: selectedCustomer.id,
+        customerName: selectedCustomer.name,
+        customerPhone: selectedCustomer.phone,
         customerCardId: selectedProject.customerCardId,
         projectId: selectedProject.id,
         projectName: selectedProject.name,
         times: selectedProject.times,
         beauticianId,
+        idempotencyKey: requestKey,
       });
+      setOutcomeUncertain(false);
       setStep(4);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "核销提交失败");
+      const uncertain = isRequestOutcomeUncertain(err);
+      setOutcomeUncertain(uncertain);
+      setError(
+        uncertain
+          ? "核销结果待核对。请保持当前选择并安全重试，系统不会重复扣次。"
+          : formatUserFacingRequestError(err, "核销提交失败"),
+      );
     } finally {
       setLoading(false);
     }
@@ -276,6 +298,8 @@ export function CardVerificationFlowCard({
                 value={selectedBeauticianId}
                 onChange={(event) => {
                   setSelectedBeauticianId(event.target.value);
+                  setIdempotencyKey("");
+                  setOutcomeUncertain(false);
                   setError(null);
                 }}
                 disabled={!beauticians.length || loading}
@@ -302,7 +326,7 @@ export function CardVerificationFlowCard({
               className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#1F1B2D] text-sm font-medium text-white transition active:scale-[0.98] disabled:cursor-wait disabled:opacity-70"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              确认核销
+              {outcomeUncertain ? "安全重试核销" : "确认核销"}
             </button>
           </div>
         </div>

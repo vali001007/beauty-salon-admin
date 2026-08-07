@@ -17,6 +17,7 @@ import {
   getTodayPrintDocuments,
   getServiceRecordPreparation,
   prefetchAuraBootstrap,
+  runWithAuraAuthRepair,
   getReceptionDashboard,
   getRechargeFlow,
   getRefundFlow,
@@ -105,7 +106,7 @@ async function runCacheableMicroApp<T>(config: CacheableMicroAppConfig<T>): Prom
   const state = await terminalQuery({
     key: config.key,
     ttlMs: config.ttlMs,
-    loader: config.loader,
+    loader: () => runWithAuraAuthRepair(config.loader),
   });
 
   if (!state.data) {
@@ -148,7 +149,7 @@ export async function prefetchTerminalMicroApps(actions: string[]) {
         await terminalPrefetch({
           key: config.key,
           ttlMs: config.ttlMs,
-          loader: config.loader,
+          loader: () => runWithAuraAuthRepair(config.loader),
           source: 'prefetch',
         }).catch(() => undefined);
       }
