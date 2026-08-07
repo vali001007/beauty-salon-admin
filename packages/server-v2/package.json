@@ -26,6 +26,8 @@
     "db:seed": "prisma db seed",
     "db:seed:mvp": "ts-node --esm prisma/seed-mvp.ts",
     "db:seed:mvp:dry-run": "ts-node --esm prisma/seed-mvp.ts --dry-run",
+    "db:seed:local-slot": "cross-env TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/seed-local-slot.ts",
+    "db:postgres17:migration-gate": "node scripts/postgres17-migration-gate.mjs",
     "db:seed:promotion-assets": "ts-node --esm prisma/seed-promotion-assets-runner.ts --apply --yes",
     "db:seed:promotion-assets:dry-run": "ts-node --esm prisma/seed-promotion-assets-runner.ts",
     "db:seed:promotion-assets:verify": "ts-node --esm prisma/seed-promotion-assets-runner.ts --verify",
@@ -335,6 +337,8 @@
     "agent:verification-plan": "ts-node --esm prisma/agent-verification-plan.ts",
     "brain:mvp-seed": "cross-env TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/brain-mvp-seed.ts --apply --yes",
     "brain:mvp-seed:dry-run": "cross-env TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/brain-mvp-seed.ts --dry-run",
+    "brain:warmup:shadow": "cross-env TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/brain-warmup-shadow.ts",
+    "brain:release:audit:416-452": "cross-env TS_NODE_TRANSPILE_ONLY=true node --loader ts-node/esm --experimental-specifier-resolution=node prisma/brain-release-pair-audit.ts",
     "brain:mvp-readiness": "ts-node --esm prisma/brain-mvp-readiness.ts",
     "db:studio": "prisma studio"
   },

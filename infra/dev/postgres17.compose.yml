@@ -1,0 +1,33 @@
+name: ami-local-postgres17
+
+services:
+  postgres17:
+    image: postgres:17-bookworm
+    container_name: ami-local-postgres17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${AMI_LOCAL_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${AMI_LOCAL_POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=en_US.UTF-8
+      TZ: UTC
+      PGTZ: UTC
+    command:
+      - postgres
+      - -c
+      - timezone=UTC
+      - -c
+      - log_timezone=UTC
+    ports:
+      - 127.0.0.1:${AMI_LOCAL_POSTGRES_PORT:-55432}:5432
+    volumes:
+      - ami_local_postgres17_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  ami_local_postgres17_data:
+    name: ami_local_postgres17_data
