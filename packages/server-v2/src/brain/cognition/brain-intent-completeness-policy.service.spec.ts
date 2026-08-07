@@ -236,6 +236,50 @@ describe('BrainIntentCompletenessPolicyService', () => {
     },
   );
 
+  it.each([
+    ['BQ1959', '给她充值', ['customer', 'amount']],
+    ['BQ1960', '核销一下', ['customer', 'project', 'cardOrServiceRecord']],
+  ])('keeps query-only action %s in clarification instead of success wording', (_caseKey, question, slots) => {
+    const result = service.assess({
+      intent: baseIntent({
+        objective: question,
+        intent: 'action',
+        answerShape: 'action_preview',
+        domains: ['finance', 'fulfillment'],
+        missingSlots: ['actionTarget'],
+      }),
+      question,
+      snapshot: snapshot as never,
+      catalogAmbiguous: false,
+      conversationSlots: {},
+    });
+
+    expect(result.answerShape).toBe('clarification');
+    expect(result.missingSlots).toEqual(expect.arrayContaining(slots));
+    expect(result.ambiguities[0]?.reason).toMatch(/不能直接执行/);
+  });
+
+  it.each([
+    ['BQ1955', '那个客户的卡还能用吗', 'customer'],
+    ['BQ1962', '那个项目还有多少耗材', 'project'],
+  ])('clarifies generic entity reference for %s', (_caseKey, question, slot) => {
+    const result = service.assess({
+      intent: baseIntent({
+        objective: question,
+        intent: 'query',
+        answerShape: 'list',
+        domains: ['customer', 'inventory'],
+      }),
+      question,
+      snapshot: snapshot as never,
+      catalogAmbiguous: false,
+      conversationSlots: {},
+    });
+
+    expect(result).toMatchObject({ intent: 'clarify', answerShape: 'clarification' });
+    expect(result.missingSlots).toContain(slot);
+  });
+
   it('does not over-clarify a complete appointment preview request', () => {
     const result = service.assess({
       intent: baseIntent({
