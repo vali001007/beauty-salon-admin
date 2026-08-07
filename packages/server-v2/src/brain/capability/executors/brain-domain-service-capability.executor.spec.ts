@@ -266,7 +266,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 11,
-      question: '流失客户召回该用什么策略和话术',
+      question: '流失客户召回该用什么策略和话术', // BQ1634
       answerShape: 'draft',
       args: {
         objective: '生成流失客户召回策略和话术',
