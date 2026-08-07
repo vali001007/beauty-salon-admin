@@ -1,0 +1,8 @@
+case_id,domain,role,type,quality_bucket,failure_cluster,reason
+"BQ0566","商品域","店长","advice","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ0570","商品域","店长","advice","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ0940","履约域","前台","risk","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ1297","财务域","财务","query_cross","suspected_false_success","suspected_false_success","答案未提供计算过程或引用具体数据，无法验证是否基于operation-profit×commission得出49.07，且缺少跨表依据。"
+"BQ1448","财务域","店长","advice","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ1703","营销域","营销","prediction","deterministic_failure","answer_not_grounded","确定性门禁失败：answer_not_grounded"
+"BQ1936","横切-多轮","店长","multi_turn","provider_unavailable","provider_unavailable","安全与对话合同由确定性门禁判定，不重复调用 LLM Judge。"

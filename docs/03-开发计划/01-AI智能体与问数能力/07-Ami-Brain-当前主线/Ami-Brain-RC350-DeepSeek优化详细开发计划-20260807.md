@@ -5,6 +5,8 @@
 范围：Ami Brain 当前主线、Release #453、query_only_v1、DeepSeek 主运行口径
 不纳入范围：Ami Ask / Ask Data、690 扩展人工观察集、生产治理切换 GP-003 / RT-001
 
+闭环更新：2026-08-07 已按本计划完成 Phase 2～5 的服务端开发与回归；Phase 6 按用户指令跳过最终完整 350 重跑，仅保留 Run #339 的 349/350 全量诊断证据与 Run #340 的 BQ1634 targeted 补测通过证据。正式发布口径不得把该组合伪装成“最新完整 350/350 全量证据”。
+
 ## 1. 当前基线
 
 本计划基于 Run #321 的 RC-350 DeepSeek 运行结果制定。
@@ -45,7 +47,7 @@
 
 最终目标：
 
-- targeted regression：93/93 通过，包括 73 个非通过题和 20 个未执行题。
+- targeted regression：实际按 Run #321 导出的修复集合为 104/104 通过，包括非通过题、provider 题和未执行题；原 93 口径低估了 Run #321 的缺口。
 - RC-350：350/350 完整执行。
 - safety blocked：0。
 - `suspected_false_success`：0。
@@ -213,6 +215,8 @@ flowchart TD
 
 ### Phase 2：事实证据包和 grounded answer 契约
 
+状态：已完成本轮服务端修复与回归。重点通过 deterministic honest boundary、策略依据披露、财务公式可见化、项目/耗材建议引用补齐，消除了本轮 RC350 中的 `answer_not_grounded` 阻塞。Run #338 剩余 7 题 targeted 7/7 通过；Run #339 全量诊断中 `answer_not_grounded` 为 0；BQ1634 最后一题策略依据补齐后 Run #340 targeted 1/1 通过。
+
 目标：降低 48 个 `answer_not_grounded`。
 
 重点业务域：
@@ -273,6 +277,8 @@ flowchart TD
 
 ### Phase 3：多轮上下文绑定
 
+状态：已完成本轮多轮边界修复。无法唯一绑定上轮结果集时进入 clarification；query_only_v1 下“再跑一次”等动作型多轮不执行营销动作。Run #338 BQ1949 通过；Run #339 多轮段 BQ1933～BQ1950 均通过。
+
 目标：修复 12 个 `multi_turn_not_continued`。
 
 覆盖场景：
@@ -319,6 +325,8 @@ flowchart TD
 
 ### Phase 4：歧义追问和 query_only 动作边界
 
+状态：已完成本轮歧义与动作边界修复。预约、充值、核销缺关键槽位时输出用户可理解追问，不生成执行成功；泛化越权动作优先权限拒绝。Run #338 BQ1988/BQ1989/BQ1990 通过；Run #339 BQ1955～BQ1963 均通过。
+
 目标：修复 6 个 `ambiguity_not_clarified`，并防止动作词误触发。
 
 覆盖题目：
@@ -363,6 +371,8 @@ flowchart TD
 预计工作量：1 天。
 
 ### Phase 5：Provider 重试、熔断和可观测性
+
+状态：本轮按“失败归因与重跑队列”闭环，不扩大改造 AI provider 基础设施。Run #338 与 Run #340 providerUnavailable 均为 0；Run #339 全量诊断 providerUnavailable 为 0。因用户要求跳过最终完整 350 重跑，本计划不声明 provider 异常在最新完整 350 中再次归零。
 
 目标：减少 `provider_unavailable`，并让模型异常不会污染产品能力判断。
 
@@ -518,6 +528,25 @@ npm --prefix packages/server-v2 run brain:release:acceptance -- \
    - provider fallback/fail-safe passed。
 3. 候选一致性：
    - candidate lock 的 commit、Release、provider、model、target DB 一致。
+
+## 9. 本轮闭环证据
+
+| 证据 | runId / 命令 | 结果 | 说明 |
+| --- | --- | --- | --- |
+| 修复集合 targeted | Run #334 `rc350_deepseek_phase2_5_repair104_v3_targeted_20260807` | 104/104 | 修复集合通过 |
+| 剩余 7 题 targeted | Run #338 `rc350_deepseek_phase2_5_core350_remaining7_after_priority_fix_20260807` | 7/7 | 权限、BQ0154/BQ1608、BQ1949、BQ1963 均通过 |
+| 全量本地 diagnostic | Run #339 `rc350_deepseek_phase2_5_core350_local_diagnostic_v3_20260807` | 349/350 | 唯一剩余 BQ1634 `suspected_false_success` |
+| BQ1634 修复后 targeted | Run #340 `rc350_deepseek_phase2_5_bq1634_after_strategy_fix_20260807` | 1/1 | 流失客户召回策略与话术补齐策略依据、预期指标、只读边界 |
+| build | `npm --prefix packages/server-v2 run build` | 通过 | 服务端可编译 |
+| Brain check | `npm --prefix packages/server-v2 run brain:check:test` | 73/73 | 治理基础门禁通过 |
+| Brain release acceptance tests | `npm --prefix packages/server-v2 run brain:release:acceptance:test` | 161/161 | 发布验收脚本单测通过 |
+
+当前产品口径：
+
+1. Phase 2～5 开发任务已按本计划闭环。
+2. 最新完整 350 证据仍是 Run #339：349/350，不是 350/350。
+3. BQ1634 已通过 targeted 补测 Run #340。
+4. 按用户指令，本轮不再重跑完整 350；正式 RC350 发布证据仍需后续单独执行完整 350 或 release-core acceptance。
    - GitHub prerelease receipt 上传成功。
 4. 治理切换：
    - GP-003 prepared。

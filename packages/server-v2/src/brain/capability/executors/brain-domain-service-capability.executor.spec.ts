@@ -242,6 +242,60 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     expect(result.metadata).toMatchObject({ mode: 'customer_recall' });
   });
 
+  it('grounds BQ1634 recall advice with strategy basis, expected metrics, and read-only boundaries', async () => {
+    const skillRuntime = {
+      draftAppointmentReminder: jest.fn(),
+      draftCustomerRecall: jest.fn().mockReturnValue('您好，最近护理节奏可以衔接起来了。'),
+    };
+    const executor = new BrainDomainServiceCapabilityExecutor(
+      skillRuntime as never,
+      {} as never,
+      new BrainTimeRangeParserService(),
+    );
+
+    const result = await executor.execute({
+      card: { ...storeCard(), key: 'marketing_message_draft', intents: ['draft'] },
+      context: {
+        userId: 9,
+        storeId: 6,
+        visibleStoreIds: [6],
+        roles: ['marketing'],
+        permissions: ['*'],
+        deniedPermissions: [],
+        requestId: 'marketing-recall-strategy-test',
+        timezone: 'Asia/Shanghai',
+      },
+      runId: 11,
+      question: '流失客户召回该用什么策略和话术', // BQ1634
+      answerShape: 'draft',
+      args: {
+        objective: '生成流失客户召回策略和话术',
+        entities: [],
+        metrics: [],
+        dimensions: [],
+        filters: [],
+        orderBy: [],
+      },
+    });
+
+    expect(result.answer).toContain('分层召回');
+    expect(result.answer).toContain('策略依据');
+    expect(result.answer).toContain('预期观察指标');
+    expect(result.answer).toContain('话术草稿');
+    expect(result.answer).toContain('未查询具体客户名单');
+    expect(result.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceId: 'marketing_draft_customer_recall' }),
+        expect.objectContaining({ sourceId: 'marketing_recall_strategy_boundary' }),
+      ]),
+    );
+    expect(result.metadata).toMatchObject({
+      mode: 'customer_recall',
+      answerScope: 'recall_strategy_and_script_draft',
+      deliveryStatus: 'draft_only',
+    });
+  });
+
   it('uses only a server-verified customer result reference in a recall draft', async () => {
     const skillRuntime = {
       draftAppointmentReminder: jest.fn(),
@@ -4975,7 +5029,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     );
     expect(result.answer).toContain('各美容师提成合计 278.21 元');
     expect(result.answer).toContain('公式：美容师提成汇总');
-    expect(result.blocks).toEqual([
+    expect(result.blocks).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: 'table',
         rows: [
@@ -4993,7 +5047,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
           },
         ],
       }),
-    ]);
+    ]));
     expect(result.metadata).toMatchObject({
       answerScope: 'staff_commission_summary_by_beautician',
       beauticianCount: 2,

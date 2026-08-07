@@ -452,8 +452,10 @@ export class BrainResultReferenceService {
   }
 
   private requestedEntityType(question: string): string | undefined {
-    if (/(?:策略|营销方案|活动方案)/.test(question)) return 'marketing_strategy';
+    if (/(?:策略|营销方案|活动方案|转化最好那个|转化最高那个)/.test(question)) return 'marketing_strategy';
+    if (/(?:她|他|这位|该|这个|那个).{0,8}(?:卡|次卡|储值卡|会员卡|权益)/.test(question)) return 'customer';
     if (/(?:客户|客人|会员)/.test(question)) return 'customer';
+    if (/(?:项目|服务|护理|耗材)|(?:这个|那个|该).{0,8}项目/.test(question)) return 'project';
     if (/(?:商品|产品|库存|批次)/.test(question)) return 'product';
     if (/(?:员工|美容师)/.test(question)) return 'beautician';
     if (
