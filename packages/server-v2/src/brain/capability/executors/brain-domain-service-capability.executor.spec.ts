@@ -167,7 +167,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 10,
-      question: '最近7天拓客成本的趋势',
+      question: '最近7天拓客成本的趋势', // BQ1563
       answerShape: 'trend',
       args: {
         objective: '查看拓客成本趋势',
@@ -4780,7 +4780,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     const unfulfilledCardLiability = await executor.execute({
       ...base,
       runId: 753,
-      question: '次卡未履约负债有多少',
+      question: '次卡未履约负债有多少', // BQ1299
       answerShape: 'scalar',
       args: {
         objective: '查询次卡未履约负债',
@@ -4797,7 +4797,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
     const storedValueAdvice = await executor.execute({
       ...base,
       runId: 754,
-      question: '储值负债太高有什么风险怎么办',
+      question: '储值负债太高有什么风险怎么办', // BQ1447
       answerShape: 'diagnosis',
       args: {
         objective: '诊断储值负债风险并给出建议',
@@ -4955,7 +4955,7 @@ describe('BrainDomainServiceCapabilityExecutor store operations', () => {
         timezone: 'Asia/Shanghai',
       },
       runId: 779,
-      question: '昨天各美容师的提成汇总',
+      question: '昨天各美容师的提成汇总', // BQ1297
       answerShape: 'list',
       args: {
         objective: '查看各美容师提成汇总',
