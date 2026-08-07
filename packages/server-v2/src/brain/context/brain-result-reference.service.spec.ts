@@ -440,6 +440,53 @@ describe('BrainResultReferenceService', () => {
     });
   });
 
+  it('binds card follow-up wording to the previous customer result set', () => {
+    const [set] = service.buildResultSets({
+      runId: 198,
+      ...scope,
+      adapterMetadata: {
+        mappingOutputs: {
+          customerRows: [{ customerId: 101, customerName: '刘婉清' }],
+        },
+      },
+    });
+
+    expect(service.resolveReference({ question: '她的次卡还剩几次', resultSets: [set!], scope })).toMatchObject({ // ami-brain-unit-only
+      kind: 'resolved',
+      reference: { entityType: 'customer', entityKey: '101', mention: '刘婉清' },
+    });
+  });
+
+  it('binds project and best-converting strategy follow-up wording to typed result sets', () => {
+    const [projectSet] = service.buildResultSets({
+      runId: 199,
+      ...scope,
+      adapterMetadata: {
+        mappingOutputs: {
+          projectRows: [{ projectId: 31, projectName: '亮肤淡斑管理' }],
+        },
+      },
+    });
+    const [strategySet] = service.buildResultSets({
+      runId: 200,
+      ...scope,
+      adapterMetadata: {
+        mappingOutputs: {
+          strategyRows: [{ strategyId: 7, strategyName: '高价值客户召回' }],
+        },
+      },
+    });
+
+    expect(service.resolveReference({ question: '那个项目还有多少耗材', resultSets: [projectSet!], scope })).toMatchObject({ // ami-brain-unit-only
+      kind: 'resolved',
+      reference: { entityType: 'project', entityKey: '31' },
+    });
+    expect(service.resolveReference({ question: '转化最好那个策略再跑一次', resultSets: [strategySet!], scope })).toMatchObject({ // ami-brain-unit-only
+      kind: 'resolved',
+      reference: { entityType: 'marketing_strategy', entityKey: '7' },
+    });
+  });
+
   it('rejects a structurally valid reference set from another store or a different persisted run output', () => {
     const [set] = service.buildResultSets({
       runId: 95,

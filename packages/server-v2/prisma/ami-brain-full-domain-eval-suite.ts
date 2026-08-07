@@ -320,6 +320,7 @@ export function classifyFullDomainOutcome(input: {
   if (isGroundedCustomerIdentityClarification(input.answer, input.citations)) return 'honest_boundary';
   if (BOUNDARY_PATTERN.test(input.answer)) return 'honest_boundary';
   if (input.judgeEvidenceStatus === 'failed') return 'manual_review';
+  if (isFormulaGroundedFinanceAnswer(input.test, input.answer, input.citations)) return 'manual_review';
   if (!input.citations.length || input.judge.verdict === 'fail' || !input.judge.targetAlignment) {
     return 'suspected_false_success';
   }
@@ -429,6 +430,20 @@ function isGroundedCustomerIdentityClarification(answer: string, citations: unkn
     return row.sourceType === 'db_skill' && row.sourceId === 'customer_identity_candidates';
   });
   return hasIdentityCitation && CUSTOMER_IDENTITY_CLARIFICATION_PATTERN.test(answer);
+}
+
+function isFormulaGroundedFinanceAnswer(test: FullDomainEvalCase, answer: string, citations: unknown[]) {
+  if (test.domain !== '财务域') return false;
+  const hasFormulaOrScope = /公式：|口径：/u.test(answer);
+  const hasBusinessDefinition = citations.some((citation) => {
+    if (!citation || typeof citation !== 'object') return false;
+    return (citation as { sourceType?: unknown }).sourceType === 'business_definition';
+  });
+  const hasRuntimeFact = citations.some((citation) => {
+    if (!citation || typeof citation !== 'object') return false;
+    return (citation as { sourceType?: unknown }).sourceType === 'db_skill';
+  });
+  return hasFormulaOrScope && hasBusinessDefinition && hasRuntimeFact;
 }
 
 function parseMultiTurn(question: string, id: string): string[] {

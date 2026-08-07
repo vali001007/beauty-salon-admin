@@ -1,4 +1,5 @@
 import { BrainAnswerCompletionGuardService } from './brain-answer-completion-guard.service.js';
+import { BrainEvidencePacketService } from './brain-evidence-packet.service.js';
 import { BrainGroundedAnswerComposerService } from './brain-grounded-answer-composer.service.js';
 
 describe('BrainGroundedAnswerComposerService', () => {
@@ -34,6 +35,57 @@ describe('BrainGroundedAnswerComposerService', () => {
     );
     expect(result.answer).toContain('1. 名称=A，数值=2');
     expect(result.answer).not.toContain('结构化结果见下方');
+  });
+
+  it('adds auditable evidence packets with filters, metrics, formulas and sample rows', () => {
+    const composer = new BrainGroundedAnswerComposerService(
+      new BrainAnswerCompletionGuardService(),
+      new BrainEvidencePacketService(),
+    );
+    const result = composer.compose({
+      observations: [
+        observation({
+          data: {
+            blocks: [
+              {
+                kind: 'table',
+                rows: [{ customerName: '刘婉清', totalSpent: 186301, token: 'must_not_leak' }],
+                columns: ['customerName', 'totalSpent'],
+              },
+            ],
+            metadata: {
+              filters: ['storeId=6', 'lastVisitDate < 2026-06-08'],
+              metrics: ['60天未到店客户数'],
+              formula: {
+                key: 'customer.inactive_60d',
+                version: '1',
+                expression: 'lastVisitDate < today - 60d',
+                computedValues: { count: 1185 },
+                calculationSteps: ['按门店过滤客户', '按最近到店日期计算未到店天数'],
+              },
+            },
+            suggestedActions: [],
+          },
+          citations: [{ sourceType: 'db_skill', sourceId: 'customer_inactive_60d', label: '60天未到店客户' }],
+        }),
+      ],
+      completion: { status: 'complete', missingCriteria: [] },
+    });
+
+    const evidence = result.blocks.find((block) => block.kind === 'evidence');
+    expect(evidence).toMatchObject({
+      kind: 'evidence',
+      packets: [
+        expect.objectContaining({
+          sourceType: 'db_skill',
+          sourceId: 'customer_inactive_60d',
+          filters: ['storeId=6', 'lastVisitDate < 2026-06-08'],
+          metrics: ['60天未到店客户数'],
+          formula: expect.objectContaining({ key: 'customer.inactive_60d' }),
+          sampleRows: [expect.not.objectContaining({ token: expect.anything() })],
+        }),
+      ],
+    });
   });
 
   it('renders primitive arrays in table cells as readable evidence', () => {

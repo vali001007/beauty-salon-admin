@@ -236,6 +236,74 @@ describe('BrainIntentCompletenessPolicyService', () => {
     },
   );
 
+  it.each([
+    ['BQ1959', '给她充值', ['customer', 'amount']],
+    ['BQ1960', '核销一下', ['customer', 'project', 'cardOrServiceRecord']],
+  ])('keeps query-only action %s in clarification instead of success wording', (_caseKey, question, slots) => {
+    const result = service.assess({
+      intent: baseIntent({
+        objective: question,
+        intent: 'action',
+        answerShape: 'action_preview',
+        domains: ['finance', 'fulfillment'],
+        missingSlots: ['actionTarget'],
+      }),
+      question,
+      snapshot: snapshot as never,
+      catalogAmbiguous: false,
+      conversationSlots: {},
+    });
+
+    expect(result.answerShape).toBe('clarification');
+    expect(result.missingSlots).toEqual(expect.arrayContaining(slots));
+    expect(result.ambiguities[0]?.reason).toMatch(/不能直接执行/);
+  });
+
+  it.each([
+    ['BQ1955', '那个客户的卡还能用吗', 'customer'],
+    ['BQ1962', '那个项目还有多少耗材', 'project'],
+  ])('clarifies generic entity reference for %s', (_caseKey, question, slot) => {
+    const result = service.assess({
+      intent: baseIntent({
+        objective: question,
+        intent: 'query',
+        answerShape: 'list',
+        domains: ['customer', 'inventory'],
+      }),
+      question,
+      snapshot: snapshot as never,
+      catalogAmbiguous: false,
+      conversationSlots: {},
+    });
+
+    expect(result).toMatchObject({ intent: 'clarify', answerShape: 'clarification' });
+    expect(result.missingSlots).toContain(slot);
+  });
+
+  it.each([
+    ['BQ0566', '想提升客单价该主推哪些项目'],
+    ['BQ0570', '淡季该主推什么项目'],
+    ['BQ1448', '这个季度怎么控制耗材成本'],
+  ])('does not over-clarify aggregate project operating advice for %s', (_caseKey, question) => {
+    const result = service.assess({
+      intent: baseIntent({
+        objective: question,
+        intent: 'diagnosis',
+        answerShape: 'diagnosis',
+        domains: ['project', 'finance'],
+        entities: [],
+        dimensions: [dimensionRef('projectName')],
+      }),
+      question,
+      snapshot: snapshot as never,
+      catalogAmbiguous: false,
+      conversationSlots: {},
+    });
+
+    expect(result.intent).not.toBe('clarify');
+    expect(result.missingSlots).not.toContain('project');
+  });
+
   it('does not over-clarify a complete appointment preview request', () => {
     const result = service.assess({
       intent: baseIntent({
@@ -382,6 +450,16 @@ function metricRef(key: string) {
   return {
     definitionType: 'metric' as const,
     definitionKey: `metric.${key}`,
+    definitionVersion: 1,
+    definitionFingerprint: hash('a'),
+    sourceFingerprint: hash('b'),
+  };
+}
+
+function dimensionRef(key: string) {
+  return {
+    definitionType: 'dimension' as const,
+    definitionKey: `dimension.${key}`,
     definitionVersion: 1,
     definitionFingerprint: hash('a'),
     sourceFingerprint: hash('b'),

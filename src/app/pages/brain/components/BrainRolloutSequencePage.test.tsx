@@ -119,6 +119,40 @@ describe('BrainRolloutSequencePage', () => {
     await waitFor(() => expect(api.promoteBrainGovernanceRolloutSequence).toHaveBeenCalledWith(51));
   });
 
+  it('keeps prerelease C05 locked until rollback drill and full release evidence are available', async () => {
+    const user = userEvent.setup();
+    api.listBrainGovernanceRolloutSequences.mockResolvedValue({
+      items: [{
+        id: 51,
+        sequenceKey: 'rollout:prerelease',
+        runtimeVersionCode: 'RT-001',
+        displayName: 'Query Only V1',
+        admissionPhase: 'prerelease',
+        status: 'active',
+        currentStage: 'canary_5',
+        governanceMode: 'enforced',
+        promotionPolicy: {},
+        healthThresholds: {},
+        candidateId: 17,
+        candidate: { candidateKey: 'repo:head:merge', status: 'observing' },
+        policySnapshot: { releaseKey: 'query-only-policy', productIdentity: { code: 'GP-003', name: 'Query Only V1 强制治理策略' } },
+        releases: [{ id: 102, rolloutStage: 'canary_5', status: 'active', productIdentity: { code: 'RT-001', stageCode: 'RT-001-C05', name: 'Query Only V1' } }],
+      }],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    });
+
+    render(<MemoryRouter><BrainRolloutSequencePage /></MemoryRouter>);
+
+    expect(await screen.findByText(/预发布演练证据：五门禁，仅允许 Shadow → C05/)).toBeInTheDocument();
+    expect(screen.getByText(/等待回滚演练 \/ 正式 Release Receipt/)).toBeInTheDocument();
+    const promote = screen.getByRole('button', { name: /等待正式 Release Receipt/ });
+    expect(promote).toBeDisabled();
+    await user.click(promote);
+    expect(api.promoteBrainGovernanceRolloutSequence).not.toHaveBeenCalled();
+  });
+
   it('keeps completed and superseded sequences folded outside the current approval queue', async () => {
     api.listBrainGovernanceRolloutSequences.mockResolvedValue({
       items: [

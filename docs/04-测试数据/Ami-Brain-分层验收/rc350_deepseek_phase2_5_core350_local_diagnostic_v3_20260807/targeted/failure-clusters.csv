@@ -1,0 +1,2 @@
+case_id,domain,role,type,quality_bucket,failure_cluster,reason
+"BQ1634","营销域","营销","advice","suspected_false_success","suspected_false_success","回答仅提供通用文案模板，未针对具体客户或数据，且缺少可验证的营销策略依据，无法评估目标对齐和完整性。"

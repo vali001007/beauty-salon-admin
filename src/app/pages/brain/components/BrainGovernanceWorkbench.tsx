@@ -420,7 +420,7 @@ export function BrainGovernanceOverviewPage() {
                 {canRelease && !transition.runtimeApprovedAt && ['draft', 'validated', 'approved'].includes(transition.status) ? <Button variant="outline" disabled={transitionBusy} onClick={() => void runTransitionAction(() => approveBrainGovernanceTransitionRuntime(transition.id), '运行版本已审批')}>审批 RT</Button> : null}
                 {canPublish && canRelease && transition.policyApprovedAt && transition.runtimeApprovedAt && ['validated', 'approved'].includes(transition.status) ? <Button disabled={transitionBusy} onClick={() => window.confirm('将同时发布新治理策略并激活新运行版本 Shadow，失败会自动补偿回滚。确认继续？') && void runTransitionAction(() => switchBrainGovernanceTransition(transition.id), '新治理策略与运行版本 Shadow 已组合生效')}>组合切换</Button> : null}
                 {canPublish && canRelease && ['switching', 'observing'].includes(transition.status) ? <Button variant="destructive" disabled={transitionBusy} onClick={() => void rollbackTransition()}><RotateCcw />组合回滚</Button> : null}
-                {canPublish && canRelease && transition.status === 'observing' && transition.runtimeSequence.status === 'completed' && transition.runtimeSequence.currentStage === 'full' ? <Button disabled={transitionBusy} onClick={() => void runTransitionAction(() => finalizeBrainGovernanceTransition(transition.id), '旧治理策略已退役，旧运行版本已标记为被取代，切换完成')}>完成退役</Button> : null}
+                {canPublish && canRelease && transitionReceiptPhase(transition) === 'release' && transition.status === 'observing' && transition.runtimeSequence.status === 'completed' && transition.runtimeSequence.currentStage === 'full' ? <Button disabled={transitionBusy} onClick={() => void runTransitionAction(() => finalizeBrainGovernanceTransition(transition.id), '旧治理策略已退役，旧运行版本已标记为被取代，切换完成')}>完成退役</Button> : null}
               </div>
               <details className="mt-3 text-xs text-muted-foreground"><summary className="cursor-pointer">审计信息</summary><p className="mt-1 break-all">Transition {transition.transitionKey} · 内部记录 #{transition.id}</p></details>
             </div>
@@ -1083,7 +1083,7 @@ function EvidenceGroup({ title, items, empty }: { title: string; items: Array<Re
 
 function isTrustedCurrentEvidence(item: Record<string, unknown>) {
   const expiresAt = Date.parse(String(item.expiresAt ?? ''));
-  return ['trusted_candidate', 'verified_release'].includes(String(item.trustLevel))
+  return ['trusted_candidate', 'verified_prerelease', 'verified_release'].includes(String(item.trustLevel))
     && item.verificationStatus === 'verified'
     && item.status === 'passed'
     && Number.isFinite(expiresAt)
@@ -1163,13 +1163,14 @@ function CurrentCombinationFacts({ data, transition }: { data: BrainGovernanceOv
 function TransitionPreviewSummary({ preview }: { preview: BrainGovernanceTransitionPreview }) {
   const identity = preview.target.identity;
   const receipt = preview.evidenceReceipt;
+  const phase = receipt?.phase ?? null;
   const blockerMessages = [...new Set(preview.blockers.map(transitionPreviewBlockerLabel))];
   const evidenceLabel = preview.missingEvidence.length
     ? `缺少 ${preview.missingEvidence.length} 项能力证据`
     : receipt?.materializationPending
       ? '正式证据正在固化'
       : receipt
-        ? '可信 Receipt 已绑定'
+        ? `${phase ? `${releasePhaseLabel(phase)} · ` : ''}可信 Receipt 已绑定`
         : '41/41 已覆盖，Receipt 状态待确认';
   return (
     <div className={`mt-3 rounded-lg p-3 ${preview.canPrepare ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
@@ -1180,6 +1181,8 @@ function TransitionPreviewSummary({ preview }: { preview: BrainGovernanceTransit
         <TargetIdentityStatus family="RT" code={preview.target.runtimeCode} name={identity?.runtime.name} status={identity?.runtime.status} />
       </div>
       <p className="mt-3">Candidate 证据：{evidenceLabel}</p>
+      {phase === 'prerelease' ? <p className="mt-2 rounded-md bg-background/60 p-2">预发布演练证据：五门禁，不含 rollback_drill；只能创建 GP/RT 草稿并推进到 C05 回滚演练。</p> : null}
+      {phase === 'release' ? <p className="mt-2 rounded-md bg-background/60 p-2">正式发布证据：六门禁，已包含 rollback_drill；允许重新组合切换并继续完整放量。</p> : null}
       {preview.missingEvidence.length ? <details className="mt-2"><summary className="cursor-pointer">查看缺失证据</summary><p className="mt-1 break-all">{preview.missingEvidence.join('、')}</p></details> : null}
       {blockerMessages.length ? <div className="mt-3 space-y-1"><div className="font-medium">当前无法创建组合：</div>{blockerMessages.map((message) => <p key={message}>{message}</p>)}</div> : null}
       {(identity || receipt || preview.blockers.length) ? (
@@ -1187,7 +1190,7 @@ function TransitionPreviewSummary({ preview }: { preview: BrainGovernanceTransit
           <summary className="cursor-pointer font-medium">审计信息</summary>
           <div className="mt-2 space-y-1 break-all">
             {identity ? <><p>GP 内部 key：{identity.policy.releaseKey} · 数据库记录 #{identity.policy.internalReleaseId ?? '-'} · 编号计数 {identity.policy.counterNumber}</p><p>RT 内部 key：{identity.runtime.releaseKey} · 序列记录 #{identity.runtime.internalSequenceId ?? '-'} · 编号计数 {identity.runtime.counterNumber}</p></> : null}
-            {receipt ? <p>Receipt：{receipt.receiptKey ?? '待固化'} · 数据库记录 #{receipt.id ?? '-'} · Eval Run #{receipt.evalRunId ?? '-'}</p> : null}
+            {receipt ? <p>Receipt：{receipt.receiptKey ?? '待固化'} · {releasePhaseLabel(phase)} · 数据库记录 #{receipt.id ?? '-'} · Eval Run #{receipt.evalRunId ?? '-'}</p> : null}
             {preview.blockers.length ? <p>原始阻断代码：{preview.blockers.join('、')}</p> : null}
           </div>
         </details>
@@ -1234,13 +1237,21 @@ function TransitionEvidenceSummary({ transition }: { transition: BrainGovernance
   const allowed = policySnapshots.filter((item) => item.whitelistStatus === 'approved').length || (transition.runtimeSequence.productProfile === 'query_only_v1' ? 33 : 0);
   const denied = policySnapshots.filter((item) => item.whitelistStatus === 'not_allowed').length || (transition.runtimeSequence.productProfile === 'query_only_v1' ? 8 : 0);
   const evidenceReady = transition.status !== 'draft' || transition.currentStep !== 'prepared';
+  const phase = transitionReceiptPhase(transition);
   return (
     <div className="mt-3 grid gap-2 rounded-lg bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-5">
       <StatusRow label="策略差异" value={`新增 ${added} / 变更 ${changed} / 移除 ${removed}`} />
       <StatusRow label="只读准入" value={`${allowed} 项 approved + enforced`} />
       <StatusRow label="Action 禁止" value={`${denied} 项 not_allowed + enforced`} />
-      <StatusRow label="Candidate 证据" value={evidenceReady ? '已完成组合校验' : 'prepare 已验证 41 项覆盖'} />
+      <StatusRow label="Candidate 证据" value={`${releasePhaseLabel(phase)} · ${evidenceReady ? '已完成组合校验' : 'prepare 已验证 41 项覆盖'}`} />
       <StatusRow label="Action 总开关" value={transition.runtimeSequence.productProfile === 'query_only_v1' ? '已关闭' : '待核对'} />
+      <div className={`sm:col-span-2 lg:col-span-5 rounded-md p-2 text-xs ${phase === 'prerelease' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
+        {phase === 'prerelease'
+          ? '预发布演练：五门禁，只允许 Shadow → C05；C05 必须组合回滚后再用正式 Release Receipt 重装。'
+          : phase === 'release'
+            ? '正式发布：六门禁，允许 C20/C50/Full 与最终退役。'
+            : '证据阶段未返回，需重新预检或校验。'}
+      </div>
     </div>
   );
 }
@@ -1344,7 +1355,17 @@ function sequenceIdentityText(sequence: BrainGovernanceTransition['runtimeSequen
 }
 
 function transitionStatusLabel(value: string) { return ({ draft: '草稿', validated: '已校验', approved: '已双审批', switching: '切换中', observing: 'Shadow 观察中', completed: '已完成', rolling_back: '回滚中', rolled_back: '已回滚', failed: '切换失败' } as Record<string, string>)[value] ?? value; }
-function transitionStepLabel(value: string) { return ({ prepared: '草稿已创建', validated: '组合校验通过', validation_blocked: '组合校验阻塞', policy_approved: '治理策略已审批', runtime_approved: '运行版本已审批', publishing_policy: '发布治理策略', activating_runtime_shadow: '激活运行版本 Shadow', runtime_shadow_active: 'Shadow 观察中', rolling_back: '组合回滚中', rollback_completed: '组合回滚完成', completed: '旧版已退役', compensation_completed: '失败后已自动恢复', compensation_failed: '自动恢复未完成' } as Record<string, string>)[value] ?? value; }
+function transitionStepLabel(value: string) { return ({ prepared: '草稿已创建', validated: '组合校验通过', validation_blocked: '组合校验阻塞', policy_approved: '治理策略已审批', runtime_approved: '运行版本已审批', publishing_policy: '发布治理策略', activating_runtime_shadow: '激活运行版本 Shadow', runtime_shadow_active: 'Shadow 观察中', rolling_back: '组合回滚中', rollback_drill_completed: 'C05 回滚演练完成', rollback_completed: '组合回滚完成', completed: '旧版已退役', compensation_completed: '失败后已自动恢复', compensation_failed: '自动恢复未完成' } as Record<string, string>)[value] ?? value; }
+function transitionReceiptPhase(transition: BrainGovernanceTransition) {
+  const snapshot = objectValue(transition.evidenceSnapshot);
+  const phase = transition.evidenceReceipt?.stage ?? snapshot.phase;
+  return phase === 'prerelease' || phase === 'release' ? phase : null;
+}
+function releasePhaseLabel(phase?: 'prerelease' | 'release' | null) {
+  if (phase === 'prerelease') return '预发布演练证据';
+  if (phase === 'release') return '正式发布证据';
+  return '证据阶段未记录';
+}
 
 function PageHeader({ title, description, action }: { title: string; description: string; action?: ReactNode }) { return <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h1 className="text-2xl font-semibold">{title}</h1><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>{action}</header>; }
 function SummaryCard({ title, values }: { title: string; values: Record<string, number> }) { return <Card><CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader><CardContent className="space-y-2">{Object.entries(values).map(([key, value]) => <StatusRow key={key} label={governanceLabel(key)} value={String(value)} />)}</CardContent></Card>; }

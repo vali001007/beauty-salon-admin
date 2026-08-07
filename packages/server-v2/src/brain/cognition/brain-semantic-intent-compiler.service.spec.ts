@@ -314,6 +314,14 @@ const newCustomerConversionRateMetricRef = {
   sourceFingerprint: 'a'.repeat(64),
 } as const;
 
+const customerAcquisitionCostMetricRef = {
+  definitionType: 'metric',
+  definitionKey: 'metric.customer_acquisition_cost',
+  definitionVersion: 1,
+  definitionFingerprint: 'ca'.repeat(32),
+  sourceFingerprint: 'cb'.repeat(32),
+} as const;
+
 const dormantReactivationMetricRef = {
   definitionType: 'metric',
   definitionKey: 'metric.dormant_reactivation_customer_count',
@@ -2723,6 +2731,10 @@ describe('BrainSemanticIntentCompilerService', () => {
       metricRefs: [storedValueLiabilityMetricRef],
     },
     {
+      question: '次卡未履约负债有多少', // BQ1299
+      metricRefs: [unfulfilledCardLiabilityMetricRef],
+    },
+    {
       // ami-brain-historical-only: historical regression fixture; excluded from release gate and pass-rate denominator
       question: '2026年6月30日次卡核销确认的收入有多少',
       metricRefs: [cardRecognizedRevenueMetricRef],
@@ -3008,6 +3020,88 @@ describe('BrainSemanticIntentCompilerService', () => {
         answerShape: 'list',
         metrics: [staffCommissionComponentMetricRef],
         dimensions: [commissionTypeDimensionRef],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it('routes all-beautician commission summaries to finance risk instead of staff performance ranking', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model_should_not_be_called');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('昨天各美容师的提成汇总'); // BQ1297
+    input.metricRefs = [staffCommissionComponentMetricRef];
+    input.dimensionRefs = [beauticianNameDimensionRef, commissionTypeDimensionRef];
+    input.capabilitySummaries = [
+      {
+        key: 'manager_staff_overview',
+        name: '员工经营概览',
+        description: '员工绩效、表现评分与提成排行',
+        domains: ['staff', 'beautician'],
+        intents: ['ranking', 'query'],
+        readOnly: true,
+        definitionRefs: [staffCommissionMetricRef],
+      },
+      {
+        key: 'finance_risk_overview',
+        name: '财务经营风险概览',
+        description: '查询各员工提成构成和提成汇总',
+        domains: ['finance', 'staff', 'beautician'],
+        intents: ['query'],
+        readOnly: true,
+        definitionRefs: [staffCommissionComponentMetricRef, beauticianNameDimensionRef, commissionTypeDimensionRef],
+      },
+    ];
+    input.rankedCapabilityKeys = ['manager_staff_overview', 'finance_risk_overview'];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      selectedCapabilityKey: 'finance_risk_overview',
+      provider: 'governed_contract',
+      model: 'finance_staff_commission_composition_fast_path',
+      intent: {
+        intent: 'query',
+        answerShape: 'list',
+        metrics: [staffCommissionComponentMetricRef],
+        dimensions: [commissionTypeDimensionRef],
+        missingSlots: [],
+      },
+    });
+    expect(aiService.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it('routes acquisition cost trend questions to a governed marketing boundary without asking for metric wording', async () => {
+    const aiService = fakeAiService(async () => {
+      throw new Error('model_should_not_be_called');
+    });
+    const compiler = createCompiler(aiService);
+    const input = compilerInput('最近7天拓客成本的趋势'); // BQ1563
+    input.metricRefs = [customerAcquisitionCostMetricRef];
+    input.dimensionRefs = [];
+    input.capabilitySummaries = [
+      {
+        key: 'marketing_growth_overview',
+        name: '营销增长概览',
+        description: '营销触达、转化、归因收入和拓客成本边界',
+        domains: ['marketing', 'customer'],
+        intents: ['query', 'trend', 'diagnosis'],
+        readOnly: true,
+        definitionRefs: [customerAcquisitionCostMetricRef],
+      },
+    ];
+    input.rankedCapabilityKeys = ['marketing_growth_overview'];
+
+    await expect(compiler.compile(input)).resolves.toMatchObject({
+      status: 'completed',
+      selectedCapabilityKey: 'marketing_growth_overview',
+      provider: 'governed_contract',
+      model: 'marketing_acquisition_cost_trend_fast_path',
+      intent: {
+        intent: 'query',
+        answerShape: 'diagnosis',
+        metrics: [customerAcquisitionCostMetricRef],
+        missingSlots: [],
       },
     });
     expect(aiService.generateStructured).not.toHaveBeenCalled();

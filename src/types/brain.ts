@@ -953,6 +953,7 @@ export interface BrainGovernanceRolloutSequence {
   runtimeVersionCode?: string | null;
   displayName?: string | null;
   productProfile?: string | null;
+  admissionPhase?: 'prerelease' | 'release' | null;
   productIdentity?: BrainProductIdentity | null;
   status: string;
   currentStage: string;
@@ -985,6 +986,21 @@ export interface BrainGovernanceTransition {
   newPolicy: BrainGovernanceRelease;
   oldRuntime: BrainGovernanceRelease;
   runtimeSequence: BrainGovernanceRolloutSequence;
+  evidenceReceiptId?: number | null;
+  evidenceSnapshot?: Record<string, unknown> | null;
+  evidenceReceipt?: {
+    id: number;
+    receiptKey: string;
+    stage: 'prerelease' | 'release' | string;
+    status: string;
+    trustLevel: 'verified_prerelease' | 'verified_release' | string;
+    verificationStatus: string;
+    issuerType: string;
+    issuer?: string | null;
+    evaluationReleaseId?: number | null;
+    evalRunId?: number | null;
+    gates?: Array<{ gateKey: string; status: string; expiresAt?: string | null }>;
+  } | null;
   policyApprovedBy?: number | null;
   policyApprovedAt?: string | null;
   runtimeApprovedBy?: number | null;
@@ -1033,6 +1049,7 @@ export interface BrainGovernanceTransitionPreview {
   evidenceReceipt: {
     id: number | null;
     receiptKey: string | null;
+    phase?: 'prerelease' | 'release' | null;
     evaluationReleaseId: number | null;
     evalRunId: number | null;
     contractVersion: string | null;
