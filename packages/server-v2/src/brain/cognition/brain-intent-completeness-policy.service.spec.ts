@@ -280,6 +280,30 @@ describe('BrainIntentCompletenessPolicyService', () => {
     expect(result.missingSlots).toContain(slot);
   });
 
+  it.each([
+    ['BQ0566', '想提升客单价该主推哪些项目'],
+    ['BQ0570', '淡季该主推什么项目'],
+    ['BQ1448', '这个季度怎么控制耗材成本'],
+  ])('does not over-clarify aggregate project operating advice for %s', (_caseKey, question) => {
+    const result = service.assess({
+      intent: baseIntent({
+        objective: question,
+        intent: 'diagnosis',
+        answerShape: 'diagnosis',
+        domains: ['project', 'finance'],
+        entities: [],
+        dimensions: [dimensionRef('projectName')],
+      }),
+      question,
+      snapshot: snapshot as never,
+      catalogAmbiguous: false,
+      conversationSlots: {},
+    });
+
+    expect(result.intent).not.toBe('clarify');
+    expect(result.missingSlots).not.toContain('project');
+  });
+
   it('does not over-clarify a complete appointment preview request', () => {
     const result = service.assess({
       intent: baseIntent({
@@ -426,6 +450,16 @@ function metricRef(key: string) {
   return {
     definitionType: 'metric' as const,
     definitionKey: `metric.${key}`,
+    definitionVersion: 1,
+    definitionFingerprint: hash('a'),
+    sourceFingerprint: hash('b'),
+  };
+}
+
+function dimensionRef(key: string) {
+  return {
+    definitionType: 'dimension' as const,
+    definitionKey: `dimension.${key}`,
     definitionVersion: 1,
     definitionFingerprint: hash('a'),
     sourceFingerprint: hash('b'),

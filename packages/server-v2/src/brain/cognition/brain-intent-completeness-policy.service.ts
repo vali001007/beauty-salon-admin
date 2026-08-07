@@ -268,7 +268,11 @@ export class BrainIntentCompletenessPolicyService {
         candidates: ['客户姓名/手机号', '从上一轮客户列表选择序号', '补充卡项名称'],
       };
     }
-    if (/(?:那个|这个|该).{0,8}(?:项目|服务|护理|耗材)/.test(question) && !this.hasSpecificEntity(intent, 'project')) {
+    if (
+      /(?:那个|这个|该).{0,8}(?:项目|服务|护理|耗材)/.test(question) &&
+      !this.isAggregateProjectAdviceQuestion(question) &&
+      !this.hasSpecificEntity(intent, 'project')
+    ) {
       return {
         intent: 'clarify',
         answerShape: 'clarification',
@@ -278,6 +282,18 @@ export class BrainIntentCompletenessPolicyService {
       };
     }
     return undefined;
+  }
+
+  private isAggregateProjectAdviceQuestion(question: string): boolean {
+    const normalized = this.normalize(question);
+    return (
+      /(?:哪些|什么).{0,8}(?:项目|护理|服务)|(?:项目|护理|服务).{0,8}(?:哪些|什么)/.test(normalized) ||
+      /(?:主推|推荐|提升客单价|提高客单价|淡季|旺季)/.test(normalized) ||
+      /(?:控制|降低|压降|优化).{0,8}(?:耗材|物料|材料).{0,8}(?:成本|成本率)|(?:耗材|物料|材料).{0,8}(?:成本|成本率).{0,8}(?:控制|降低|压降|优化)/.test(
+        normalized,
+      ) ||
+      /(?:这个|本|上|下)?季度/.test(normalized)
+    );
   }
 
   private hasAmbiguousNamedPeriod(question: string): boolean {

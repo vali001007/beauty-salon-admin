@@ -6206,20 +6206,62 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         const draft = recall
           ? this.skillRuntime.draftCustomerRecall({})
           : this.skillRuntime.draftAppointmentReminder({ timeWindow });
-        const answer = customerReference ? `针对上轮选中的客户 ${customerReference.mention}：\n${draft}` : draft;
+        const answer =
+          recall && !customerReference
+            ? [
+                '流失客户召回建议采用“分层召回 + 低压回访 + 到店承接”的人工策略。',
+                '',
+                '策略依据：当前能力使用已发布的老客召回文案模板和 query_only_v1 只读边界；未查询具体客户名单时，不能声称已锁定某个客户或自动生成投放人群。',
+                '1. 高价值流失客户：优先由顾问一对一回访，先询问护理状态，再给出可预约时段。',
+                '2. 疗程或次卡临期客户：提醒剩余权益和有效期，重点降低未履约与过期风险。',
+                '3. 普通沉睡客户：使用温和关怀话术，不直接大额让利，先观察回复率和预约转化。',
+                '',
+                '预期观察指标：触达回复率、预约转化率、到店核销率、召回后 30 天复购金额；没有这些数据时只输出策略草稿，不判断活动成败。',
+                '',
+                `话术草稿：${draft}`,
+              ].join('\n')
+            : customerReference
+              ? `针对上轮选中的客户 ${customerReference.mention}：\n${draft}`
+              : draft;
         const sourceId = recall ? 'marketing_draft_customer_recall' : 'marketing_draft_appointment_reminder';
         return {
           status: 'completed',
           answer,
-          citations: [{ sourceType: 'skill', sourceId, label: recall ? '老客召回文案模板' : '预约邀约文案模板' }],
+          citations: [
+            {
+              sourceType: 'skill',
+              sourceId,
+              label: recall ? '老客召回文案模板' : '预约邀约文案模板',
+            },
+            ...(recall && !customerReference
+              ? [
+                  {
+                    sourceType: 'governed_template' as const,
+                    sourceId: 'marketing_recall_strategy_boundary',
+                    label: '流失客户召回策略与只读边界',
+                  },
+                ]
+              : []),
+          ],
           grounding: 'template_skill',
           blocks: [
+            ...(recall && !customerReference
+              ? [
+                  {
+                    kind: 'text' as const,
+                    text: answer,
+                    citationIds: [sourceId, 'marketing_recall_strategy_boundary'],
+                  },
+                ]
+              : []),
             {
               kind: 'limitations',
               items: [
                 customerReference
                   ? '这是基于上轮受控客户引用生成的可编辑草稿，未重新查询客户敏感资料，也不会自动发送。'
-                  : '这是可编辑文案草稿，未查询或选择具体客户，也不会自动发送。',
+                  : recall
+                    ? '这是召回策略和可编辑话术草稿，未查询或选择具体客户，未创建营销任务，也不会自动发送。'
+                    : '这是可编辑文案草稿，未查询或选择具体客户，也不会自动发送。',
               ],
             },
           ],
@@ -6229,6 +6271,11 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
             rangeLabel: range.label,
             timeWindow: timeWindow ?? null,
             deliveryStatus: 'draft_only',
+            ...(recall && !customerReference
+              ? {
+                  answerScope: 'recall_strategy_and_script_draft',
+                }
+              : {}),
             ...(customerReference
               ? {
                   resolvedResultRef: {
@@ -6238,7 +6285,17 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
                   },
                 }
               : {}),
-            completionCriteria: ['draft_generated', 'no_message_sent', 'limitations_disclosed'],
+            completionCriteria:
+              recall && !customerReference
+                ? [
+                    'strategy_segments_disclosed',
+                    'template_basis_disclosed',
+                    'expected_metrics_disclosed',
+                    'draft_generated',
+                    'no_message_sent',
+                    'limitations_disclosed',
+                  ]
+                : ['draft_generated', 'no_message_sent', 'limitations_disclosed'],
           },
         };
       }
@@ -9966,6 +10023,10 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           ],
           grounding: 'db_skill',
           blocks: [
+            {
+              kind: 'text',
+              text: `${range.label}各美容师提成合计 ${total.toFixed(2)} 元，共 ${displayRows.length} 位美容师有有效提成记录。计算过程：${formula} 本次按 finance_staff_commission_rows 提成事实聚合，不用员工业绩、订单收入或利润概览替代提成。`,
+            },
             {
               kind: 'table',
               rows: displayRows,
