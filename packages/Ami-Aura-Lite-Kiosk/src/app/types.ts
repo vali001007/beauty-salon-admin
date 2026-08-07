@@ -226,11 +226,14 @@ export interface CardVerificationFlowData {
 
 export interface CardVerificationConfirmInput {
   customerId: number;
+  customerName: string;
+  customerPhone?: string;
   customerCardId: number;
   projectId: number;
   projectName: string;
   times: number;
   beauticianId?: number;
+  idempotencyKey: string;
 }
 
 export interface CashierCustomer {

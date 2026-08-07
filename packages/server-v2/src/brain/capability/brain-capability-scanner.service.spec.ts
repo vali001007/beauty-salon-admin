@@ -401,6 +401,9 @@ describe('BrainCapabilityScannerService', () => {
       'packages/server-v2/src/cards/cards.service.ts',
       `export class CardsService {
         verify(input: QueryDto) {
+          return this.verifyWithOutcome(input);
+        }
+        verifyWithOutcome(input: QueryDto) {
           return this.prisma.$transaction(async (tx) => {
             await tx.cardUsage.create({ data: input });
             return tx.customerCard.update({ where: { id: 1 }, data: {} });

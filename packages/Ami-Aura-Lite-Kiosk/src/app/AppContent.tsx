@@ -137,6 +137,8 @@ import type {
   AiSuggestionData,
 } from "./types";
 import type { AuraBootstrap } from "../../../../src/types/aura";
+import { formatUserFacingRequestError } from "./services/userFacingError";
+import { EnvironmentBanner } from "../../../../src/app/components/EnvironmentBanner";
 
 type LoadingPayload = { kind: "agentThinking" };
 type Payload = AuraPayload | LoadingPayload;
@@ -171,6 +173,12 @@ function createMessage(
 function getMessageQueryText(message: Message): string {
   const payload = message.payload as { text?: unknown } | undefined;
   return typeof payload?.text === "string" ? payload.text.trim() : "";
+}
+
+function isCoreRequestErrorMessage(message: Message) {
+  if (message.type !== "error") return false;
+  const payload = message.payload as { source?: unknown } | undefined;
+  return payload?.source === "core";
 }
 
 function findPreviousQuestion(messages: Message[], messageId: string): { question: string; questionIndex: number | null } {
@@ -311,11 +319,13 @@ function AuraLoginPage({
   };
 
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-[#F7F5F2] px-6 font-sans">
-      <form
-        onSubmit={handleSubmit}
-        className="grid w-full max-w-[420px] gap-5 rounded-[28px] border border-black/10 bg-white p-8 shadow-[0_18px_50px_rgba(31,27,45,0.12)]"
-      >
+    <div className="flex h-screen w-full flex-col bg-[#F7F5F2] font-sans">
+      <EnvironmentBanner />
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6">
+        <form
+          onSubmit={handleSubmit}
+          className="grid w-full max-w-[420px] gap-5 rounded-[28px] border border-black/10 bg-white p-8 shadow-[0_18px_50px_rgba(31,27,45,0.12)]"
+        >
         <div>
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7B5CFF] to-[#C9956C] text-lg font-semibold text-white">
             A
@@ -357,7 +367,8 @@ function AuraLoginPage({
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           登录终端
         </button>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }
@@ -805,9 +816,15 @@ export default function AppContent() {
         stream === "flow" &&
         options?.replaceFixedFlowCards &&
         createdMessages.some((message) => FIXED_FLOW_MESSAGE_TYPES.has(message.type));
-      const baseMessages = shouldReplaceFixedFlowCards
-        ? prev.filter((message) => !FIXED_FLOW_MESSAGE_TYPES.has(message.type))
-        : prev;
+      const quickActionSucceeded =
+        stream === "flow" &&
+        options?.replaceFixedFlowCards &&
+        createdMessages.some((message) => message.type !== "error");
+      const baseMessages = prev.filter((message) => {
+        if (shouldReplaceFixedFlowCards && FIXED_FLOW_MESSAGE_TYPES.has(message.type)) return false;
+        if (quickActionSucceeded && isCoreRequestErrorMessage(message)) return false;
+        return true;
+      });
       const missingPrependedMessages = (options?.prependMessages ?? []).filter(
         (message) => !baseMessages.some((item) => item.id === message.id),
       );
@@ -1392,7 +1409,11 @@ export default function AppContent() {
       }
       const setTargetMessages = targetStream === "agent" ? setAgentMessages : setMessages;
       setTargetMessages((prev) => (isConversationEpochActive(epoch) ? removeLoadingMessages(prev) : prev));
-      appendMessage(createMessage("error", { text: err instanceof Error ? err.message : "请求失败", source: "core" }), epoch, targetStream);
+      appendMessage(
+        createMessage("error", { text: formatUserFacingRequestError(err), source: "core" }),
+        epoch,
+        targetStream,
+      );
     } finally {
       if (isConversationEpochActive(epoch)) {
         setCommandLoading(false);
@@ -1523,6 +1544,8 @@ export default function AppContent() {
         onFingerprint={() => loadRoleHome(currentRole, { bootstrapForCache: bootstrap, epoch: getConversationEpoch() })}
       />
 
+      <EnvironmentBanner />
+
       {showConversationHistory ? (
         <ConversationHistory
           currentRole={currentRole}
@@ -1556,7 +1579,10 @@ export default function AppContent() {
             }
 
             if (message.type === "error") {
-              const text = (message.payload as { text?: string })?.text ?? "请求失败";
+              const text = formatUserFacingRequestError(
+                (message.payload as { text?: string })?.text,
+                "操作暂时未完成，请稍后重试",
+              );
               return (
                 <div key={key} className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-600">
                   {text}

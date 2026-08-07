@@ -14,6 +14,7 @@ const RUNTIME_RELEASE_SCOPES = ['global', 'store', 'user', 'role', 'percentage']
 
 export interface BrainReleaseOntologyWarmupResult {
   readonly releaseId: number;
+  readonly releaseFingerprint: string;
   readonly releaseStatus: WarmableReleaseStatus;
   readonly mode: 'model' | 'shadow';
   readonly definitionVersionIds: readonly number[];
@@ -336,8 +337,8 @@ export class BrainActiveReleaseWarmupService implements OnApplicationBootstrap {
     if (definitionVersionIds.length === 0) {
       throw new Error(`brain_release_warmup_definition_refs_missing:${release.id}`);
     }
+    const header = releaseArtifactHeader(release);
     if (resolveWarmupPipeline() === 'artifact' && this.warmupArtifact) {
-      const header = releaseArtifactHeader(release);
       const artifact =
         (await this.warmupArtifact.loadReady(header)) ??
         (await this.warmupArtifact.build({
@@ -355,6 +356,7 @@ export class BrainActiveReleaseWarmupService implements OnApplicationBootstrap {
     const [ontology, catalog] = await Promise.all([ontologyLoad, capabilityCatalogLoad]);
     return Object.freeze({
       releaseId: release.id,
+      releaseFingerprint: header.releaseFingerprint,
       releaseStatus: release.status,
       mode,
       definitionVersionIds: Object.freeze([...definitionVersionIds]),
@@ -439,6 +441,7 @@ function artifactWarmupResult(
   }
   return Object.freeze({
     releaseId: release.id,
+    releaseFingerprint: artifact.releaseFingerprint,
     releaseStatus: release.status,
     mode,
     definitionVersionIds: Object.freeze([...artifact.definitionVersionIds]),
