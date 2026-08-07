@@ -244,6 +244,46 @@ describe('Ami Brain Judge infrastructure classification', () => {
       }),
     ).toBe('manual_review');
   });
+
+  it('keeps formula-grounded finance answers in manual review instead of suspected false success', () => {
+    const test = {
+      id: 'BQ1298',
+      domain: '财务域',
+      role: '财务',
+      roleKey: 'finance',
+      type: 'query_cross' as const,
+      difficulty: 'medium',
+      question: '昨天毛利率是多少',
+      expectedTarget: 'operation-profit×commission',
+      notes: '跨表',
+      turns: ['昨天毛利率是多少'],
+    };
+    const citations = [
+      { sourceType: 'business_definition', sourceId: 'metric.gross_margin_rate' },
+      { sourceType: 'db_skill', sourceId: 'finance_cost_analysis' },
+    ];
+    const answer =
+      '毛利率：87.90%。\n\n公式：毛利率=毛利/收入=539.11/613.33=87.90%。\n\n数据依据：业务定义：metric.gross_margin_rate；权威日结、成本、提成与负债分析。';
+    const deterministic = deterministicFullDomainGrade({
+      test,
+      answer,
+      status: 'completed',
+      citations,
+      completedTurns: 1,
+    });
+
+    expect(deterministic.passed).toBe(true);
+    expect(
+      classifyFullDomainOutcome({
+        test,
+        deterministic,
+        answer,
+        citations,
+        judge: { verdict: 'insufficient_evidence', targetAlignment: false, factualGrounding: 'insufficient' },
+        judgeEvidenceStatus: 'success',
+      }),
+    ).toBe('manual_review');
+  });
 });
 
 describe('Ami Brain RC-350 resume evidence filtering', () => {

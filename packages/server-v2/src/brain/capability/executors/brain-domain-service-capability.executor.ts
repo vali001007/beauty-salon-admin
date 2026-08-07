@@ -5957,6 +5957,8 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
         };
       }
       case 'marketing_growth_overview': {
+        const acquisitionCostBoundary = await this.buildMarketingAcquisitionCostTrendBoundary(input, range);
+        if (acquisitionCostBoundary) return acquisitionCostBoundary;
         if (this.isPackageAudienceQuestion(input.question, input.args.objective)) {
           return this.buildMarketingPackageAudience(input);
         }
@@ -9923,6 +9925,70 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       const beauticians = structuredEntityMentions(input.args as BrainCapabilityToolArgs).filter(
         (entity) => entity.entityType === 'beautician' && /^\d+$/u.test(String(entity.entityKey ?? '')),
       );
+      if (beauticians.length === 0 && isAllBeauticianCommissionSummaryQuestion(input.question)) {
+        const rows = await this.skillRuntime.buildFinanceStaffCommissionRows({
+          storeId: input.context.storeId,
+          startDate: range.startDate,
+          endDate: range.endDate,
+        });
+        const byBeautician = new Map<
+          number,
+          { beauticianId: number; beauticianName: string; total: number; components: string[] }
+        >();
+        for (const row of rows) {
+          const current = byBeautician.get(row.beauticianId) ?? {
+            beauticianId: row.beauticianId,
+            beauticianName: row.beauticianName,
+            total: 0,
+            components: [],
+          };
+          current.total += row.amount;
+          current.components.push(`${row.commissionType}:${row.amount.toFixed(2)}`);
+          byBeautician.set(row.beauticianId, current);
+        }
+        const displayRows = [...byBeautician.values()]
+          .map((row) => ({
+            beauticianId: row.beauticianId,
+            beauticianName: row.beauticianName,
+            totalCommission: this.roundMoney(row.total),
+            components: row.components.join('；'),
+          }))
+          .sort((left, right) => right.totalCommission - left.totalCommission || left.beauticianId - right.beauticianId);
+        const total = displayRows.reduce((sum, row) => sum + row.totalCommission, 0);
+        const formula =
+          '公式：美容师提成汇总=有效提成记录按美容师和提成类型聚合求和；全员总提成=各美容师提成合计。';
+        return {
+          status: 'completed',
+          answer: `${range.label}各美容师提成合计 ${total.toFixed(2)} 元，共 ${displayRows.length} 位美容师有有效提成记录。${formula}`,
+          citations: [
+            ...definitionCitations,
+            { sourceType: 'db_skill', sourceId: 'finance_staff_commission_rows', label: '员工有效提成构成' },
+          ],
+          grounding: 'db_skill',
+          blocks: [
+            {
+              kind: 'table',
+              rows: displayRows,
+              columns: ['beauticianId', 'beauticianName', 'totalCommission', 'components'],
+              citationIds: ['finance_staff_commission_rows'],
+            },
+          ],
+          metadata: {
+            capabilityKey: 'finance_risk_overview',
+            answerScope: 'staff_commission_summary_by_beautician',
+            sourceRowCount: rows.length,
+            beauticianCount: displayRows.length,
+            totalCommission: this.roundMoney(total),
+            formula,
+            completionCriteria: [
+              'staff_commission_rows_loaded',
+              'beautician_grouping_applied',
+              'formula_disclosed',
+            ],
+            ...this.executionTimeRange(range, input.context.timezone),
+          },
+        };
+      }
       if (beauticians.length !== 1) {
         const limitation =
           beauticians.length > 1
@@ -10219,9 +10285,17 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       },
     };
     const items = costMetricKeys.flatMap((key) => (scalarMap[key] ? [scalarMap[key]] : []));
+    const formulaNotes = this.financeMetricFormulaNotes(costMetricKeys, cost);
+    const storedValueAdvice =
+      metricKeys.has('metric.stored_value_liability') && isStoredValueRiskAdviceQuestion(input.question)
+        ? [
+            '风险：储值负债代表客户已付款但尚未消耗的履约义务，余额过高会带来集中到店、退款、现金流和服务产能压力。',
+            '建议：按会员分层拆分余额与近 30 天消耗速度，优先唤醒高余额低到店客户，并把新充值活动与可履约产能联动审批。',
+          ]
+        : [];
     return {
       status: 'completed',
-      answer: `${range.label}${items.map((item) => `${item.label} ${item.formatted}`).join('，')}。`,
+      answer: `${range.label}${items.map((item) => `${item.label} ${item.formatted}`).join('，')}。${formulaNotes.length ? ` ${formulaNotes.join('；')}。` : ''}${storedValueAdvice.length ? ` ${storedValueAdvice.join(' ')}` : ''}`,
       citations: [
         ...definitionCitations,
         { sourceType: 'db_skill', sourceId: 'finance_cost_analysis', label: '权威日结、成本、提成与负债分析' },
@@ -10233,11 +10307,34 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
           items: items.map((item) => ({ label: item.label, value: item.formatted })),
           citationIds: ['finance_cost_analysis'],
         },
+        ...(formulaNotes.length
+          ? [
+              {
+                kind: 'text' as const,
+                text: formulaNotes.join('；') + '。',
+                citationIds: ['finance_cost_analysis'],
+              },
+            ]
+          : []),
+        ...(storedValueAdvice.length
+          ? [
+              {
+                kind: 'diagnosis' as const,
+                findings: [
+                  { title: '储值负债履约风险', detail: storedValueAdvice[0]!, severity: 'warning' as const },
+                  { title: '处理建议', detail: storedValueAdvice[1]!, severity: 'info' as const },
+                ],
+                citationIds: ['finance_cost_analysis'],
+              },
+            ]
+          : []),
       ],
       metadata: {
         capabilityKey: 'finance_risk_overview',
         answerScope: 'structured_finance_metrics',
         requestedMetricKeys: costMetricKeys,
+        formulaNotes,
+        adviceProvided: storedValueAdvice.length > 0,
         ...this.executionTimeRange(range, input.context.timezone),
       },
     };
@@ -10284,6 +10381,102 @@ export class BrainDomainServiceCapabilityExecutor implements BrainCapabilityExec
       inferred.add('metric.gross_margin_rate');
     }
     return [...inferred];
+  }
+
+  private async buildMarketingAcquisitionCostTrendBoundary(
+    input: BrainCapabilityExecutionInput,
+    range: BrainDateRange,
+  ): Promise<BrainDomainAnswer | undefined> {
+    if (!isMarketingAcquisitionCostTrendQuestion(input.question)) return undefined;
+    const summary = await this.customerFacts.getNewCustomerConversionSummary({
+      storeId: input.context.storeId,
+      startDate: range.startDate,
+      endDate: range.endDate,
+    });
+    const formula = '公式：拓客成本=营销成本/转化客户数；转化客户数为 0 时不能输出 0 元成本。';
+    const limitation =
+      '当前 Ami Brain 已有新客建档和首单转化事实，但当前未发布可核验的营销成本事实，不能生成最近 7 天拓客成本趋势。';
+    return {
+      status: 'completed',
+      answer: `${limitation}${formula}${range.label}可核验的新客转化基线：新增客户 ${summary.newCustomerCount} 人，首单转化 ${summary.convertedCustomerCount} 人，转化率 ${(summary.conversionRate * 100).toFixed(1)}%。`,
+      citations: [
+        {
+          sourceType: 'business_definition',
+          sourceId: 'metric.customer_acquisition_cost',
+          label: '业务定义：拓客成本',
+        },
+        {
+          sourceType: 'db_skill',
+          sourceId: 'customer_acquisition_conversion_summary',
+          label: '客户建档与首笔有效订单转化事实',
+        },
+      ],
+      grounding: 'db_skill',
+      blocks: [
+        {
+          kind: 'kpi',
+          items: [
+            { label: '新增客户', value: `${summary.newCustomerCount} 人` },
+            { label: '首单转化', value: `${summary.convertedCustomerCount} 人` },
+            { label: '转化率', value: `${(summary.conversionRate * 100).toFixed(1)}%` },
+          ],
+          citationIds: ['customer_acquisition_conversion_summary'],
+        },
+        { kind: 'limitations', items: [limitation, formula] },
+      ],
+      metadata: {
+        capabilityKey: 'marketing_growth_overview',
+        answerScope: 'marketing_acquisition_cost_trend_boundary',
+        unsupportedReason: 'marketing_cost_fact_not_governed',
+        rangeLabel: range.label,
+        formula,
+        completionCriteria: [
+          'new_customer_conversion_loaded',
+          'marketing_cost_gap_disclosed',
+          'acquisition_cost_formula_disclosed',
+        ],
+        ...this.executionTimeRange(range, input.context.timezone),
+      },
+    };
+  }
+
+  private financeMetricFormulaNotes(
+    metricKeys: string[],
+    cost: Awaited<ReturnType<BrainSkillRuntimeService['buildFinanceCostAnalysis']>>,
+  ) {
+    const requested = new Set(metricKeys);
+    const notes: string[] = [];
+    if (requested.has('metric.gross_margin_rate')) {
+      notes.push(
+        cost.revenue > 0
+          ? `公式：毛利率=毛利/收入=${cost.grossProfit.toFixed(2)}/${cost.revenue.toFixed(2)}=${((cost.grossMarginRate ?? 0) * 100).toFixed(2)}%`
+          : '公式：毛利率=毛利/收入；当前收入为 0，不能计算有效毛利率',
+      );
+    }
+    if (requested.has('metric.gross_profit_amount')) {
+      notes.push('口径：毛利取权威日结 grossProfit 字段，不用收款额直接替代利润');
+    }
+    if (requested.has('metric.operating_profit_amount')) {
+      notes.push(
+        `公式：经营利润=毛利-提成成本-运营成本=${cost.grossProfit.toFixed(2)}-${cost.commissionCost.toFixed(2)}-${cost.operatingCost.toFixed(2)}=${cost.operatingProfit.toFixed(2)}`,
+      );
+    }
+    if (requested.has('metric.cost_income_ratio')) {
+      notes.push(
+        `公式：成本收入比=(耗材成本+提成成本+运营成本)/收入=(${cost.materialCost.toFixed(2)}+${cost.commissionCost.toFixed(2)}+${cost.operatingCost.toFixed(2)})/${cost.revenue.toFixed(2)}=${(cost.costIncomeRatio * 100).toFixed(2)}%`,
+      );
+    }
+    if (requested.has('metric.stored_value_liability')) {
+      notes.push(
+        `口径：储值负债=当前有效储值账户现金余额+赠送余额=${cost.storedValueLiability.toFixed(2)} 元`,
+      );
+    }
+    if (requested.has('metric.unfulfilled_card_liability')) {
+      notes.push(
+        `公式：次卡未履约负债=有效次卡剩余次数×单次确认价值汇总=${cost.unfulfilledCardLiability.toFixed(2)} 元`,
+      );
+    }
+    return notes;
   }
 
   private async buildCardRecognizedRevenueAnswer(
@@ -12222,6 +12415,27 @@ function isScalarOrderCountQuestion(question: string): boolean {
   const normalized = question.replace(/\s+/gu, '');
   if (/(?:趋势|走势|按日|每天|分布|对比|相比)/u.test(normalized)) return false;
   return /(?:(?:一共|总共|合计|共有|有)?多少笔订单|订单(?:一共|总共|合计|共有)?(?:有)?多少笔|订单数(?:量)?(?:一共|总共|合计|是|有)?多少)/u.test(
+    normalized,
+  );
+}
+
+function isAllBeauticianCommissionSummaryQuestion(question: string): boolean {
+  const normalized = question.replace(/\s+/gu, '');
+  return (
+    /(?:各|每个|每位|所有|全部|全体).*(?:美容师|员工).*(?:提成|佣金)/u.test(normalized) ||
+    /(?:美容师|员工).*(?:提成|佣金).*(?:汇总|合计|总计|排行|排名|分别|多少)/u.test(normalized) ||
+    /(?:提成|佣金).*(?:按|分).*(?:美容师|员工)/u.test(normalized)
+  );
+}
+
+function isStoredValueRiskAdviceQuestion(question: string): boolean {
+  const normalized = question.replace(/\s+/gu, '');
+  return /(?:储值|会员卡|会员余额|储值余额).*(?:风险|压力|太高|过高|怎么办|建议|处理)/u.test(normalized);
+}
+
+function isMarketingAcquisitionCostTrendQuestion(question: string): boolean {
+  const normalized = question.replace(/\s+/gu, '');
+  return /(?:获客|拓客)成本.*(?:趋势|走势|变化|按天|每天|最近7天|近7天|本周)|(?:趋势|走势|变化|按天|每天|最近7天|近7天|本周).*(?:获客|拓客)成本/u.test(
     normalized,
   );
 }
